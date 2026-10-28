@@ -11,6 +11,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,san
 main{max-width:860px;margin:0 auto}
 h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 20px}
+.back{color:var(--muted)}.back:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:24px 0 8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
@@ -23,41 +24,61 @@ h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute
 .gain{color:var(--gold);font-weight:700;white-space:nowrap}
 .empty{padding:20px;text-align:center;color:var(--muted)}
 .note{color:var(--muted);font-size:12px;margin-top:16px}
+.err{color:var(--accent)}
 </style>
 </head>
 <body>
 <main>
   <h1>Clan Fights</h1>
   <p class="sub" id="status">Loading...</p>
-  <p><a href="/" style="color:#8a8a99">&larr; Back to Bleed Watch</a></p>
+  <p><a class="back" href="/">&larr; Back to Bleed Watch</a></p>
   <h2>Rep gained, last hour</h2>
   <div class="grid" id="clans"></div>
   <h2>Recent wins</h2>
-  <div class="list" id="feed"></div>
+  <div class="list" id="feed" aria-live="polite"></div>
   <p class="note">A rep gain means that member just won a fight. Only a few clans are tracked, checked every few minutes.</p>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function ago(ms){const s=Math.round(ms/1000);return s<60?s+'s ago':s<3600?Math.floor(s/60)+'m ago':Math.floor(s/3600)+'h ago'}
+function ago(ms){const s=Math.max(0,Math.round(ms/1000));return s<60?s+'s ago':s<3600?Math.floor(s/60)+'m ago':Math.floor(s/3600)+'h ago'}
+
+let data = null, loadedAt = 0, failed = false, timer;
+
+function draw(){
+  if(!data) return;
+  const d = data, base = d.now + (Date.now() - loadedAt);   // keep "x ago" moving between polls
+  const totals = {};
+  d.gains.forEach(g => { (totals[g.clan] ||= {gain:0,n:0}); totals[g.clan].gain += g.gain; totals[g.clan].n++; });
+  const entries = Object.entries(totals).sort((a,b) => b[1].gain - a[1].gain);
+  $('clans').innerHTML = entries.length
+    ? entries.map(([c,t]) => `<div class="tile"><b>+${t.gain.toLocaleString()}</b>${esc(c)}<br><span>${t.n} win${t.n===1?'':'s'}</span></div>`).join('')
+    : '<div class="empty" style="grid-column:1/-1">No rep gains recorded in the last hour.</div>';
+  $('feed').innerHTML = d.gains.length
+    ? d.gains.slice(0,60).map(g => `<div class="row"><div>${esc(g.member)}<small>${esc(g.clan)} &middot; ${ago(base-g.at)}</small></div><div class="gain">+${g.gain.toLocaleString()}</div></div>`).join('')
+    : '<div class="empty">Nothing yet. The first check only records a baseline.</div>';
+  const s = $('status');
+  s.className = 'sub' + (failed ? ' err' : '');
+  s.textContent = failed ? 'Connection problem, showing the last data. Retrying…'
+    : d.checked_at ? 'Last check ' + ago(base - d.checked_at) : 'Live, refreshes every 30s';
+}
+
 async function load(){
   try{
-    const r = await fetch('/api/members');
+    const r = await fetch('/api/members', { signal: AbortSignal.timeout(10000) });
+    if(!r.ok) throw new Error('Server returned ' + r.status);
     const d = await r.json();
     if(d.error) throw new Error(d.error);
-    const totals = {};
-    d.gains.forEach(g => { (totals[g.clan] ||= {gain:0,n:0}); totals[g.clan].gain += g.gain; totals[g.clan].n++; });
-    const entries = Object.entries(totals).sort((a,b) => b[1].gain - a[1].gain);
-    $('clans').innerHTML = entries.length
-      ? entries.map(([c,t]) => `<div class="tile"><b>+${t.gain.toLocaleString()}</b>${esc(c)}<br><span>${t.n} win${t.n===1?'':'s'}</span></div>`).join('')
-      : '<div class="empty" style="grid-column:1/-1">No rep gains recorded in the last hour.</div>';
-    $('feed').innerHTML = d.gains.length
-      ? d.gains.slice(0,60).map(g => `<div class="row"><div>${esc(g.member)}<small>${esc(g.clan)} &middot; ${ago(d.now-g.at)}</small></div><div class="gain">+${g.gain.toLocaleString()}</div></div>`).join('')
-      : '<div class="empty">Nothing yet. The first check only records a baseline.</div>';
-    $('status').textContent = 'Live, refreshes every 30s';
-  }catch(e){ $('status').textContent = 'Connection problem: ' + e.message; }
+    data = d; loadedAt = Date.now(); failed = false;
+  }catch(e){
+    failed = true;
+    if(!data) $('status').textContent = 'Connection problem: ' + e.message;
+  }
+  draw();
+  if(!document.hidden) timer = setTimeout(load, 30000);   // chained, so a slow response never overlaps; paused when hidden
 }
-load(); setInterval(load, 30000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden){ clearTimeout(timer); load(); } });
+load(); setInterval(draw, 1000);
 </script>
 </body>
 </html>
