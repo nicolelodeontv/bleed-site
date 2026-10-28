@@ -1,7 +1,8 @@
 import * as cheerio from 'cheerio';
 
 const SRC = 'https://ninjazenshin.online/clan-ranking';
-const { SUPABASE_URL, SUPABASE_SERVICE_KEY, DISCORD_WEBHOOK_URL, DISCORD_ROLE_ID } = process.env;
+const { SUPABASE_URL, DISCORD_WEBHOOK_URL, DISCORD_ROLE_ID } = process.env;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const STOP_AFTER = 5 * 60e3;   // no rep drop for this long = stopped bleeding
 const STALE = 10 * 60e3;       // if our last check is older than this, don't compare against it
 const RESET_GUARD = 10;        // more simultaneous drops than this = season reset, ignore
