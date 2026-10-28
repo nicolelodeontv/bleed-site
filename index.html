@@ -4,40 +4,70 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clan Bleed Watch</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>">
 <style>
-:root{--card:#111;--line:#222;--text:#eee;--mute:#888;--red:#e5484d}
+:root{--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--accent:#ff4d5a;--hot:#4a1a20}
 *{box-sizing:border-box}
-body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);
-  background:radial-gradient(1200px 600px at 50% -10%,#2a0a0c,#050505 60%) fixed;min-height:100vh}
-main{max-width:760px;margin:0 auto;padding:24px 16px 64px}
-h1{margin:0;font-size:26px}
-h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:28px 0 8px}
+body{margin:0;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+  background:radial-gradient(900px 500px at 50% -140px,rgba(255,77,90,.16),transparent 70%),var(--bg);min-height:100vh;-webkit-font-smoothing:antialiased}
+main{max-width:880px;margin:0 auto;padding:28px 16px 72px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a0d11,#150709);border:1px solid #3a1419}
+h1{margin:0;font-size:22px;letter-spacing:-.01em;line-height:1.2}
 .sub{color:var(--mute);font-size:13px}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3ecf8e;margin-right:6px}
-.err .dot{background:var(--red)}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
-button{background:#1a1a1a;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer}
-button.on{border-color:var(--red);color:#ff9a9d}
-.card{background:var(--card);border:1px solid #5a1a1d;border-radius:14px;padding:14px 16px;margin:10px 0;
-  display:flex;justify-content:space-between;gap:12px;box-shadow:0 0 24px #e5484d22}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px;color:var(--mute)}
+.dot{width:8px;height:8px;border-radius:50%;background:#3ecf8e;animation:ok 2s infinite}
+.err .dot{background:var(--accent);animation:none}
+@keyframes ok{70%{box-shadow:0 0 0 7px rgba(62,207,142,0)}0%{box-shadow:0 0 0 0 rgba(62,207,142,.6)}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0 14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.stat span{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.stat b{display:block;font-size:24px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat.hot{border-color:var(--hot)}.stat.hot b{color:var(--accent)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+button,input{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px}
+button{cursor:pointer}button:hover{border-color:#34343f}
+button.on{border-color:var(--hot);color:#ff9aa2;background:#170a0c}
+input{flex:1;min-width:150px}input:focus{outline:none;border-color:#34343f}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:26px 0 10px;font-weight:600}
+.card{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0;padding:14px 16px;border-radius:14px;
+  border:1px solid var(--hot);background:linear-gradient(90deg,rgba(255,77,90,.1),var(--card) 65%)}
 .card b{font-size:16px}
+.card .l{display:flex;align-items:center;gap:12px}
+.pulse{width:10px;height:10px;border-radius:50%;background:var(--accent);animation:pl 1.4s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 rgba(255,77,90,.6)}100%{box-shadow:0 0 0 10px rgba(255,77,90,0)}}
 .card .r{text-align:right;white-space:nowrap}
-.loss{color:#ff9a9d}
-.empty{color:var(--mute);padding:18px;border:1px dashed var(--line);border-radius:14px;text-align:center}
-.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.loss{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+.empty{color:var(--mute);padding:22px;border:1px dashed var(--line);border-radius:14px;text-align:center}
+.wrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-th{color:var(--mute);font-weight:500}
-td.n{text-align:right}
-tr.b td{background:#e5484d14}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:#14141a;color:var(--mute);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.k{color:var(--mute);width:44px}
+.g1{color:#f5c542}.g2{color:#c0c7d1}.g3{color:#d08a5a}
+tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 0 var(--accent)}
+.toggle{margin-left:auto}
+.note{color:var(--mute);font-size:12.5px;margin-top:14px}
+@media(max-width:640px){.hm{display:none}.stat b{font-size:20px}}
 </style>
 </head>
 <body>
 <main>
-  <h1>🩸 Clan Bleed Watch</h1>
-  <div class="sub" id="status"><span class="dot"></span>Connecting…</div>
+  <header>
+    <div class="brand"><div class="mark">🩸</div><div><h1>Clan Bleed Watch</h1><div class="sub">Live clan war reputation tracker</div></div></div>
+    <div class="pill" id="status"><span class="dot"></span>Connecting…</div>
+  </header>
 
-  <div class="bar">
+  <div class="stats">
+    <div class="stat" id="sb"><span>Bleeding now</span><b id="nb">0</b></div>
+    <div class="stat"><span>Active clans</span><b id="na">0</b></div>
+    <div class="stat"><span>Last check</span><b id="nc">-</b></div>
+  </div>
+
+  <div class="tools">
     <button id="alerts">🔔 Enable alerts</button>
     <button id="sound">🔈 Sound off</button>
   </div>
@@ -46,16 +76,20 @@ tr.b td{background:#e5484d14}
   <div id="list"></div>
 
   <h2>Clan ranking</h2>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search clans" autocomplete="off">
+    <button id="all" class="toggle">Show all clans</button>
+  </div>
   <div class="wrap"><table>
-    <thead><tr><th>#</th><th>Clan</th><th>Master</th><th>Members</th><th class="n">Reputation</th></tr></thead>
+    <thead><tr><th>#</th><th>Clan</th><th class="hm">Master</th><th class="hm">Members</th><th class="n">Reputation</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
-  <p class="sub">A clan counts as bleeding when its reputation drops between checks, and stops after 5 minutes with no further drops. The server does the checking, so everyone sees the same list and times. Browser alerts need this tab open.</p>
+  <p class="note">A clan counts as bleeding when its reputation drops between checks, and stops after 5 minutes with no further drops. The server does the checking, so everyone sees the same list and times. Browser alerts need this tab open.</p>
 </main>
 
 <script>
 const POLL = 15000;
-let state = { clans: [], bleeding: {}, checked_at: 0 }, known = null, failed = false;
+let state = { clans: [], bleeding: {}, checked_at: 0 }, known = null, failed = false, q = '', showAll = false;
 let sound = localStorage.getItem('sound') === '1';
 
 const $ = s => document.querySelector(s);
@@ -75,18 +109,24 @@ function alertStart(name, lost) {
 function render() {
   const now = Date.now(), entries = Object.entries(state.bleeding).sort((a, b) => a[1].since - b[1].since), n = entries.length;
   $('#head').textContent = n === 0 ? 'No clans are bleeding' : `${n} clan${n === 1 ? ' is' : 's are'} bleeding`;
+  $('#nb').textContent = n; $('#sb').classList.toggle('hot', n > 0);
+  $('#na').textContent = state.clans.filter(c => c.rep > 0).length;
+  $('#nc').textContent = state.checked_at ? ago(now - state.checked_at) + ' ago' : '-';
+
   $('#list').innerHTML = n ? entries.map(([name, b]) => {
     const c = state.clans.find(x => x.name === name) || {};
-    return `<div class="card"><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div>
+    return `<div class="card"><div class="l"><span class="pulse"></span><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div></div>
       <div class="r"><div class="loss">-${b.lost.toLocaleString()} rep</div><div class="sub">bleeding for ${ago(now - b.since)}</div></div></div>`;
   }).join('') : '<div class="empty">Nothing right now. This updates on its own.</div>';
 
-  $('#rows').innerHTML = state.clans.map(c => `<tr class="${state.bleeding[c.name] ? 'b' : ''}"><td>${c.rank}</td><td>${state.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td>
-    <td>${esc(c.master)}</td><td>${esc(c.members)}</td><td class="n">${c.rep.toLocaleString()}</td></tr>`).join('');
+  const rows = state.clans.filter(c => (showAll || c.rep > 0 || state.bleeding[c.name]) && c.name.toLowerCase().includes(q));
+  $('#rows').innerHTML = rows.map(c => `<tr class="${state.bleeding[c.name] ? 'b' : ''}"><td class="k ${c.rank <= 3 ? 'g' + c.rank : ''}">${c.rank}</td>
+    <td>${state.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td><td class="hm">${esc(c.master)}</td><td class="hm">${esc(c.members)}</td>
+    <td class="n">${c.rep.toLocaleString()}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">No clans match.</td></tr>';
 
   const s = $('#status');
-  s.className = 'sub' + (failed ? ' err' : '');
-  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · checked ' + ago(now - state.checked_at) + ' ago');
+  s.className = 'pill' + (failed ? ' err' : '');
+  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · refreshes every 15s');
 }
 
 async function poll() {
@@ -95,7 +135,7 @@ async function poll() {
     if (!r.ok) throw new Error();
     state = await r.json(); failed = false;
     if (known) for (const [n, b] of Object.entries(state.bleeding))
-      if (!known.has(n + '@' + b.since)) alertStart(n, b.lost);   // only clans that newly started
+      if (!known.has(n + '@' + b.since)) alertStart(n, b.lost);
     known = new Set(Object.entries(state.bleeding).map(([n, b]) => n + '@' + b.since));
   } catch { failed = true; }
   render(); setTimeout(poll, POLL);
@@ -105,12 +145,15 @@ function syncButtons() {
   const ok = 'Notification' in window && Notification.permission === 'granted';
   $('#alerts').textContent = ok ? '🔔 Alerts on' : '🔔 Enable alerts'; $('#alerts').classList.toggle('on', ok);
   $('#sound').textContent = sound ? '🔊 Sound on' : '🔈 Sound off'; $('#sound').classList.toggle('on', sound);
+  $('#all').textContent = showAll ? 'Hide inactive clans' : 'Show all clans'; $('#all').classList.toggle('on', showAll);
 }
 $('#alerts').onclick = async () => {
   if (!('Notification' in window)) return alert('This browser does not support notifications.');
   await Notification.requestPermission(); syncButtons();
 };
 $('#sound').onclick = () => { sound = !sound; localStorage.setItem('sound', sound ? '1' : '0'); if (sound) beep(); syncButtons(); };
+$('#all').onclick = () => { showAll = !showAll; syncButtons(); render(); };
+$('#q').oninput = e => { q = e.target.value.trim().toLowerCase(); render(); };
 
 syncButtons(); poll(); setInterval(render, 1000);
 </script>
