@@ -91,59 +91,92 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
 </main>
 
 <script>
-const POLL = 15000;
-let state = { clans: [], bleeding: {}, checked_at: 0 }, known = null, failed = false, q = '', showAll = false;
-let sound = localStorage.getItem('sound') === '1';
-let muted = localStorage.getItem('muted') === '1';
+const POLL = 15000, TIMEOUT = 10000;
+let state = { clans: [], bleeding: {}, checked_at: 0, stale: false }, known = null, failed = 0, q = '', showAll = false, timer;
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+let sound = store.get('sound') === '1';
+let muted = store.get('muted') === '1';
+let watch = new Set(JSON.parse(store.get('watch') || '[]'));
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ago = ms => { const s = Math.max(0, Math.floor(ms / 1000)); if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m < 60 ? m + 'm ' + (s % 60) + 's' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
+const rate = (lost, since, now) => { const m = (now - since) / 60000; return m >= 1 ? ' · ~' + Math.round(lost / m).toLocaleString() + '/min' : ''; };
 
+let ctx;
 function beep() {
-  try { const a = new AudioContext(), o = a.createOscillator(), g = a.createGain();
-    o.connect(g); g.connect(a.destination); o.frequency.value = 660; g.gain.value = .1; o.start(); o.stop(a.currentTime + .25); } catch {}
+  try { ctx ??= new AudioContext(); ctx.resume();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination); o.frequency.value = 660; g.gain.value = .1; o.start(); o.stop(ctx.currentTime + .25); } catch {}
 }
 function alertStart(name, lost) {
-  if (muted) return;
+  if (muted || (watch.size && !watch.has(name))) return;
   if (sound) beep();
   if ('Notification' in window && Notification.permission === 'granted')
-    new Notification('🩸 ' + name + ' started bleeding', { body: '-' + lost.toLocaleString() + ' reputation' });
+    try { new Notification('🩸 ' + name + ' started bleeding', { body: '-' + lost.toLocaleString() + ' reputation' }); } catch {}
+}
+
+function setStatus(now) {
+  const old = state.checked_at && now - state.checked_at > 60000, bad = failed || state.stale || old, s = $('#status');
+  s.className = 'pill' + (bad ? ' err' : '');
+  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : bad ? 'Data may be stale' : 'Live · refreshes every 15s');
 }
 
 function render() {
   const now = Date.now(), entries = Object.entries(state.bleeding).sort((a, b) => a[1].since - b[1].since), n = entries.length;
   $('#head').textContent = n === 0 ? 'No clans are bleeding' : `${n} clan${n === 1 ? ' is' : 's are'} bleeding`;
+  document.title = (n ? `(${n}) 🩸 ` : '') + 'Clan Bleed Watch';
   $('#nb').textContent = n; $('#sb').classList.toggle('hot', n > 0);
   $('#na').textContent = state.clans.filter(c => c.rep > 0).length;
-  $('#nc').textContent = state.checked_at ? ago(now - state.checked_at) + ' ago' : '-';
 
   $('#list').innerHTML = n ? entries.map(([name, b]) => {
     const c = state.clans.find(x => x.name === name) || {};
     return `<div class="card"><div class="l"><span class="pulse"></span><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div></div>
-      <div class="r"><div class="loss">-${b.lost.toLocaleString()} rep</div><div class="sub">bleeding for ${ago(now - b.since)}</div></div></div>`;
+      <div class="r"><div class="loss">-${b.lost.toLocaleString()} rep</div><div class="sub" data-since="${b.since}" data-lost="${b.lost}"></div></div></div>`;
   }).join('') : '<div class="empty">Nothing right now. This updates on its own.</div>';
 
   const rows = state.clans.filter(c => (showAll || c.rep > 0 || state.bleeding[c.name]) && c.name.toLowerCase().includes(q));
   $('#rows').innerHTML = rows.map(c => `<tr class="${state.bleeding[c.name] ? 'b' : ''}"><td class="k ${c.rank <= 3 ? 'g' + c.rank : ''}">${c.rank}</td>
-    <td>${state.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td><td class="hm">${esc(c.master)}</td><td class="hm">${esc(c.members)}</td>
+    <td><button class="star" data-w="${esc(c.name)}" aria-label="Watch ${esc(c.name)}" aria-pressed="${watch.has(c.name)}" style="border:0;background:none;padding:0 6px 0 0;cursor:pointer">${watch.has(c.name) ? '⭐' : '☆'}</button>${state.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td><td class="hm">${esc(c.master)}</td><td class="hm">${esc(c.members)}</td>
     <td class="n">${c.rep.toLocaleString()}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">No clans match.</td></tr>';
+  tick();
+}
 
-  const s = $('#status');
-  s.className = 'pill' + (failed ? ' err' : '');
-  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · refreshes every 15s');
+// runs every second: only touches timers, never rebuilds the lists
+function tick() {
+  const now = Date.now();
+  $('#nc').textContent = state.checked_at ? ago(now - state.checked_at) + ' ago' : '-';
+  document.querySelectorAll('[data-since]').forEach(el => {
+    const since = +el.dataset.since, lost = +el.dataset.lost;
+    el.textContent = 'bleeding for ' + ago(now - since) + rate(lost, since, now);
+  });
+  setStatus(now);
 }
 
 async function poll() {
   try {
-    const r = await fetch('/api/status');
+    const r = await fetch('/api/status', { signal: AbortSignal.timeout(TIMEOUT) });
     if (!r.ok) throw new Error();
-    state = await r.json(); failed = false;
+    state = await r.json(); failed = 0;
     if (known) for (const [n, b] of Object.entries(state.bleeding))
       if (!known.has(n + '@' + b.since)) alertStart(n, b.lost);
     known = new Set(Object.entries(state.bleeding).map(([n, b]) => n + '@' + b.since));
-  } catch { failed = true; }
-  render(); setTimeout(poll, POLL);
+  } catch { failed++; }
+  render();
+  if (!document.hidden) timer = setTimeout(poll, Math.min(POLL * 2 ** failed, 60000));   // back off after failures, pause when hidden
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(timer); poll(); } });
+
+async function history() {
+  try {
+    const r = await fetch('/api/history', { signal: AbortSignal.timeout(TIMEOUT) });
+    if (!r.ok) return;
+    const { events } = await r.json();
+    $('#hist').innerHTML = events.length
+      ? '<div class="wrap" style="max-height:260px"><table><tbody>' + events.map(e =>
+        `<tr><td>${esc(e.name)}</td><td class="n">-${e.lost.toLocaleString()} rep</td><td class="n sub">${ago(e.last_drop - e.since)}</td><td class="n sub">${ago(Date.now() - e.ended_at)} ago</td></tr>`).join('') + '</tbody></table></div>'
+      : '<div class="empty">No finished bleeds in the last 24h.</div>';
+  } catch {}
 }
 
 function syncButtons() {
@@ -154,14 +187,23 @@ function syncButtons() {
 }
 $('#alerts').onclick = async () => {
   if (!('Notification' in window)) return alert('This browser does not support notifications.');
-  if (Notification.permission === 'granted') { muted = !muted; localStorage.setItem('muted', muted ? '1' : '0'); return syncButtons(); }
+  if (Notification.permission === 'granted') { muted = !muted; store.set('muted', muted ? '1' : '0'); return syncButtons(); }
   await Notification.requestPermission(); syncButtons();
 };
-$('#sound').onclick = () => { sound = !sound; localStorage.setItem('sound', sound ? '1' : '0'); if (sound) beep(); syncButtons(); };
+$('#sound').onclick = () => { sound = !sound; store.set('sound', sound ? '1' : '0'); if (sound) beep(); syncButtons(); };
 $('#all').onclick = () => { showAll = !showAll; syncButtons(); render(); };
 $('#q').oninput = e => { q = e.target.value.trim().toLowerCase(); render(); };
+$('#rows').onclick = e => {
+  const b = e.target.closest('[data-w]'); if (!b) return;
+  const n = b.dataset.w; watch.has(n) ? watch.delete(n) : watch.add(n);
+  store.set('watch', JSON.stringify([...watch])); render();
+};
 
-syncButtons(); poll(); setInterval(render, 1000);
+// extras: aria-live on the bleeding list, history section above the footnote
+$('#list').setAttribute('aria-live', 'polite');
+$('.note').insertAdjacentHTML('beforebegin', '<h2>Last 24 hours</h2><div id="hist"></div>');
+$('.note').textContent += ' Tap ☆ to watch specific clans: with any watched, alerts only fire for those.';
+syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 300000);
 </script>
 </body>
 </html>
