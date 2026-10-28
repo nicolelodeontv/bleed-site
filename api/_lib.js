@@ -62,8 +62,13 @@ async function say(content, ping) {
     content: (pingRole ? `<@&${DISCORD_ROLE_ID}> ` : '') + content,
     allowed_mentions: pingRole ? { roles: [DISCORD_ROLE_ID] } : { parse: [] },
   };
-  if (BOT) await bot(`/channels/${DISCORD_CHANNEL_ID}/messages`, 'POST', body);
-  else if (DISCORD_WEBHOOK_URL) await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let ok = false;
+  if (BOT) {
+    const r = await bot(`/channels/${DISCORD_CHANNEL_ID}/messages`, 'POST', body);
+    ok = r.ok;
+    if (!ok) console.error('Bot message failed', r.status, await r.text());
+  }
+  if (!ok && DISCORD_WEBHOOK_URL) await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
 function panel(bleeding) {
