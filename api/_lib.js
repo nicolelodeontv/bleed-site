@@ -57,7 +57,7 @@ const bot = (path, method, body) => fetch('https://discord.com/api/v10' + path, 
 
 // Uses the bot if configured, else the webhook. Only "start" messages ping the role.
 async function say(content, ping) {
-  const pingRole = ping && DISCORD_ROLE_ID;
+  const pingRole = process.env.PING_ENABLED === 'true' && ping && DISCORD_ROLE_ID;
   const body = {
     content: (pingRole ? `<@&${DISCORD_ROLE_ID}> ` : '') + content,
     allowed_mentions: pingRole ? { roles: [DISCORD_ROLE_ID] } : { parse: [] },
