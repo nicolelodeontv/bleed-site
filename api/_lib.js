@@ -98,10 +98,12 @@ async function syncPanel(prev, bleeding, changed) {
     if (r.status !== 404) return;                     // 404 = message was deleted, post a new one
   }
   const r = await bot(`/channels/${DISCORD_CHANNEL_ID}/messages`, 'POST', body);
-  if (r.ok) {
-    const m = await r.json();
-    await fetch(`${TABLE}?id=eq.1`, { method: 'PATCH', headers: H, body: JSON.stringify({ message_id: m.id }) });
+  if (!r.ok) {
+    console.error('Panel post failed', r.status, await r.text());
+    return;
   }
+  const m = await r.json();
+  await fetch(`${TABLE}?id=eq.1`, { method: 'PATCH', headers: H, body: JSON.stringify({ message_id: m.id }) });
 }
 
 const dur = ms => { const s = Math.round(ms / 1000); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's'; };
@@ -135,8 +137,11 @@ export async function runTick(minAgeMs) {
 
   try {
     if (started.length) await say(started.map(s => `🩸 **${s.name}** started bleeding (-${s.lost.toLocaleString()} rep)`).join('\n'), true);
-    if (stopped.length) await say(stopped.map(s => `✅ **${s.name}** stopped bleeding after ${dur(s.lastDrop - s.since)} (-${s.lost.toLocaleString()} rep total)`).join('\n'), false);
+    if (stopped.length) await say(stopped.map(s => {
+    const span = s.lastDrop - s.since;
+    return `✅ **${s.name}** stopped bleeding${span >= 1000 ? ` after ${dur(span)}` : ''} (-${s.lost.toLocaleString()} rep total)`;
+  }).join('\n'), false);
     await syncPanel(prev, bleeding, started.length + stopped.length > 0);
-  } catch {}
+  } catch (e) { console.error('Discord step failed', e); }
   return { ...next, message_id: prev.message_id };
 }
