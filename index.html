@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clan Bleed Watch</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>">
 <style>
 :root{--card:#111;--line:#222;--text:#eee;--mute:#888;--red:#e5484d}
 *{box-sizing:border-box}
@@ -51,19 +50,17 @@ tr.b td{background:#e5484d14}
     <thead><tr><th>#</th><th>Clan</th><th>Master</th><th>Members</th><th class="n">Reputation</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
-  <p class="sub">A clan counts as bleeding when its reputation drops between checks. It stops after 5 minutes with no further drops. Keep this tab open to get alerts.</p>
+  <p class="sub">A clan counts as bleeding when its reputation drops between checks, and stops after 5 minutes with no further drops. The server does the checking, so everyone sees the same list and times. Browser alerts need this tab open.</p>
 </main>
 
 <script>
-const POLL = 15000, STOP_AFTER = 5 * 60e3, STALE = 10 * 60e3, RESET_GUARD = 10, KEY = 'bleedState';
-let st = { lastRep: null, savedAt: 0, bleeding: {} };
-try { st = { ...st, ...JSON.parse(localStorage.getItem(KEY)) }; } catch {}
-let clans = [], sound = localStorage.getItem('sound') === '1', failed = false;
+const POLL = 15000;
+let state = { clans: [], bleeding: {}, checked_at: 0 }, known = null, failed = false;
+let sound = localStorage.getItem('sound') === '1';
 
 const $ = s => document.querySelector(s);
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ago = ms => { const s = Math.floor(ms / 1000); if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m < 60 ? m + 'm ' + (s % 60) + 's' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
+const ago = ms => { const s = Math.max(0, Math.floor(ms / 1000)); if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m < 60 ? m + 'm ' + (s % 60) + 's' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
 
 function beep() {
   try { const a = new AudioContext(), o = a.createOscillator(), g = a.createGain();
@@ -75,42 +72,31 @@ function alertStart(name, lost) {
     new Notification('🩸 ' + name + ' started bleeding', { body: '-' + lost.toLocaleString() + ' reputation' });
 }
 
-function detect() {
-  const now = Date.now(), cur = Object.fromEntries(clans.map(c => [c.name, c.rep]));
-  if (st.lastRep && now - st.savedAt < STALE) {            // skip comparison if our baseline is old
-    const drops = clans.filter(c => st.lastRep[c.name] !== undefined && c.rep < st.lastRep[c.name]);
-    if (drops.length <= RESET_GUARD) for (const c of drops) { // mass drop = season reset, ignore
-      const lost = st.lastRep[c.name] - c.rep, b = st.bleeding[c.name];
-      if (b) { b.lastDrop = now; b.lost += lost; }
-      else { st.bleeding[c.name] = { since: now, lastDrop: now, lost }; alertStart(c.name, lost); }
-    }
-  }
-  for (const [n, b] of Object.entries(st.bleeding)) if (!cur[n] || now - b.lastDrop > STOP_AFTER) delete st.bleeding[n];
-  st.lastRep = cur; st.savedAt = now; save();
-}
-
 function render() {
-  const now = Date.now(), entries = Object.entries(st.bleeding).sort((a, b) => a[1].since - b[1].since), n = entries.length;
+  const now = Date.now(), entries = Object.entries(state.bleeding).sort((a, b) => a[1].since - b[1].since), n = entries.length;
   $('#head').textContent = n === 0 ? 'No clans are bleeding' : `${n} clan${n === 1 ? ' is' : 's are'} bleeding`;
   $('#list').innerHTML = n ? entries.map(([name, b]) => {
-    const c = clans.find(x => x.name === name) || {};
-    return `<div class="card bleed"><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div>
+    const c = state.clans.find(x => x.name === name) || {};
+    return `<div class="card"><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div>
       <div class="r"><div class="loss">-${b.lost.toLocaleString()} rep</div><div class="sub">bleeding for ${ago(now - b.since)}</div></div></div>`;
   }).join('') : '<div class="empty">Nothing right now. This updates on its own.</div>';
 
-  $('#rows').innerHTML = clans.map(c => `<tr class="${st.bleeding[c.name] ? 'b' : ''}"><td>${c.rank}</td><td>${st.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td>
+  $('#rows').innerHTML = state.clans.map(c => `<tr class="${state.bleeding[c.name] ? 'b' : ''}"><td>${c.rank}</td><td>${state.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td>
     <td>${esc(c.master)}</td><td>${esc(c.members)}</td><td class="n">${c.rep.toLocaleString()}</td></tr>`).join('');
 
   const s = $('#status');
   s.className = 'sub' + (failed ? ' err' : '');
-  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · refreshes every 15s');
+  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · checked ' + ago(now - state.checked_at) + ' ago');
 }
 
 async function poll() {
   try {
-    const r = await fetch('/api/clans');
+    const r = await fetch('/api/status');
     if (!r.ok) throw new Error();
-    clans = (await r.json()).clans; failed = false; detect();
+    state = await r.json(); failed = false;
+    if (known) for (const [n, b] of Object.entries(state.bleeding))
+      if (!known.has(n + '@' + b.since)) alertStart(n, b.lost);   // only clans that newly started
+    known = new Set(Object.entries(state.bleeding).map(([n, b]) => n + '@' + b.since));
   } catch { failed = true; }
   render(); setTimeout(poll, POLL);
 }
