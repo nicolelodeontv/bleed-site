@@ -45,7 +45,7 @@ export default async function handler(req, res) {
       },
       channelId: {
         length: DISCORD_CHANNEL_ID.trim().length,
-        looksLikeSnowflake: /^\\d{17,20}$/.test(DISCORD_CHANNEL_ID.trim()),
+        looksLikeSnowflake: /^[0-9]{17,20}$/.test(DISCORD_CHANNEL_ID.trim()),
       },
       channel: {
         status: channel.status,
