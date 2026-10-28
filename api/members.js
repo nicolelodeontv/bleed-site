@@ -15,7 +15,12 @@ async function pollClan(id, now) {
   const r = await fetch(SRC + id, { headers: { 'User-Agent': 'Mozilla/5.0 (bleed-site)' } });
   if (!r.ok) return { id, error: 'HTTP ' + r.status };
   const d = await r.json();
-  const members = Array.isArray(d.members) ? d.members : [];
+  const seen = new Set();
+  const members = (Array.isArray(d.members) ? d.members : []).filter(m => {
+  if (!m.name || !m.name.trim() || seen.has(m.name)) return false;
+  seen.add(m.name);
+  return true;
+  });
   if (!members.length) return { id, error: 'no members' };
 
   const o = await fetch(`${REST}/member_rep?clan_id=eq.${id}&select=name,rep`, { headers: H });
@@ -56,7 +61,10 @@ export default async function handler(req, res) {
       if (req.query.key !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
       const now = Date.now();
       const out = [];
-      for (const id of IDS) out.push(await pollClan(id, now));
+      for (const id of IDS) {
+      try { out.push(await pollClan(id, now)); }
+      catch (e) { out.push({ id, error: e.message }); }
+      }
       await fetch(`${REST}/rep_gains?at=lt.${now - KEEP}`, { method: 'DELETE', headers: H });
       return res.status(200).json({ ok: true, polled: out });
     }
