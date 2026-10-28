@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clan Bleed Watch</title>
+<style>
+:root{--card:#111;--line:#222;--text:#eee;--mute:#888;--red:#e5484d}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);
+  background:radial-gradient(1200px 600px at 50% -10%,#2a0a0c,#050505 60%) fixed;min-height:100vh}
+main{max-width:760px;margin:0 auto;padding:24px 16px 64px}
+h1{margin:0;font-size:26px}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:28px 0 8px}
+.sub{color:var(--mute);font-size:13px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3ecf8e;margin-right:6px}
+.err .dot{background:var(--red)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+button{background:#1a1a1a;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer}
+button.on{border-color:var(--red);color:#ff9a9d}
+.card{background:var(--card);border:1px solid #5a1a1d;border-radius:14px;padding:14px 16px;margin:10px 0;
+  display:flex;justify-content:space-between;gap:12px;box-shadow:0 0 24px #e5484d22}
+.card b{font-size:16px}
+.card .r{text-align:right;white-space:nowrap}
+.loss{color:#ff9a9d}
+.empty{color:var(--mute);padding:18px;border:1px dashed var(--line);border-radius:14px;text-align:center}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:500}
+td.n{text-align:right}
+tr.b td{background:#e5484d14}
+</style>
+</head>
+<body>
+<main>
+  <h1>🩸 Clan Bleed Watch</h1>
+  <div class="sub" id="status"><span class="dot"></span>Connecting…</div>
+
+  <div class="bar">
+    <button id="alerts">🔔 Enable alerts</button>
+    <button id="sound">🔈 Sound off</button>
+  </div>
+
+  <h2 id="head">Bleeding now</h2>
+  <div id="list"></div>
+
+  <h2>Clan ranking</h2>
+  <div class="wrap"><table>
+    <thead><tr><th>#</th><th>Clan</th><th>Master</th><th>Members</th><th class="n">Reputation</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="sub">A clan counts as bleeding when its reputation drops between checks. It stops after 5 minutes with no further drops. Keep this tab open to get alerts.</p>
+</main>
+
+<script>
+const POLL = 15000, STOP_AFTER = 5 * 60e3, STALE = 10 * 60e3, RESET_GUARD = 10, KEY = 'bleedState';
+let st = { lastRep: null, savedAt: 0, bleeding: {} };
+try { st = { ...st, ...JSON.parse(localStorage.getItem(KEY)) }; } catch {}
+let clans = [], sound = localStorage.getItem('sound') === '1', failed = false;
+
+const $ = s => document.querySelector(s);
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = ms => { const s = Math.floor(ms / 1000); if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m < 60 ? m + 'm ' + (s % 60) + 's' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
+
+function beep() {
+  try { const a = new AudioContext(), o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination); o.frequency.value = 660; g.gain.value = .1; o.start(); o.stop(a.currentTime + .25); } catch {}
+}
+function alertStart(name, lost) {
+  if (sound) beep();
+  if ('Notification' in window && Notification.permission === 'granted')
+    new Notification('🩸 ' + name + ' started bleeding', { body: '-' + lost.toLocaleString() + ' reputation' });
+}
+
+function detect() {
+  const now = Date.now(), cur = Object.fromEntries(clans.map(c => [c.name, c.rep]));
+  if (st.lastRep && now - st.savedAt < STALE) {            // skip comparison if our baseline is old
+    const drops = clans.filter(c => st.lastRep[c.name] !== undefined && c.rep < st.lastRep[c.name]);
+    if (drops.length <= RESET_GUARD) for (const c of drops) { // mass drop = season reset, ignore
+      const lost = st.lastRep[c.name] - c.rep, b = st.bleeding[c.name];
+      if (b) { b.lastDrop = now; b.lost += lost; }
+      else { st.bleeding[c.name] = { since: now, lastDrop: now, lost }; alertStart(c.name, lost); }
+    }
+  }
+  for (const [n, b] of Object.entries(st.bleeding)) if (!cur[n] || now - b.lastDrop > STOP_AFTER) delete st.bleeding[n];
+  st.lastRep = cur; st.savedAt = now; save();
+}
+
+function render() {
+  const now = Date.now(), entries = Object.entries(st.bleeding).sort((a, b) => a[1].since - b[1].since), n = entries.length;
+  $('#head').textContent = n === 0 ? 'No clans are bleeding' : `${n} clan${n === 1 ? ' is' : 's are'} bleeding`;
+  $('#list').innerHTML = n ? entries.map(([name, b]) => {
+    const c = clans.find(x => x.name === name) || {};
+    return `<div class="card bleed"><div><b>${esc(name)}</b><div class="sub">Rank #${c.rank ?? '?'} · ${(c.rep ?? 0).toLocaleString()} rep</div></div>
+      <div class="r"><div class="loss">-${b.lost.toLocaleString()} rep</div><div class="sub">bleeding for ${ago(now - b.since)}</div></div></div>`;
+  }).join('') : '<div class="empty">Nothing right now. This updates on its own.</div>';
+
+  $('#rows').innerHTML = clans.map(c => `<tr class="${st.bleeding[c.name] ? 'b' : ''}"><td>${c.rank}</td><td>${st.bleeding[c.name] ? '🩸 ' : ''}${esc(c.name)}</td>
+    <td>${esc(c.master)}</td><td>${esc(c.members)}</td><td class="n">${c.rep.toLocaleString()}</td></tr>`).join('');
+
+  const s = $('#status');
+  s.className = 'sub' + (failed ? ' err' : '');
+  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : 'Live · refreshes every 15s');
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/clans');
+    if (!r.ok) throw new Error();
+    clans = (await r.json()).clans; failed = false; detect();
+  } catch { failed = true; }
+  render(); setTimeout(poll, POLL);
+}
+
+function syncButtons() {
+  const ok = 'Notification' in window && Notification.permission === 'granted';
+  $('#alerts').textContent = ok ? '🔔 Alerts on' : '🔔 Enable alerts'; $('#alerts').classList.toggle('on', ok);
+  $('#sound').textContent = sound ? '🔊 Sound on' : '🔈 Sound off'; $('#sound').classList.toggle('on', sound);
+}
+$('#alerts').onclick = async () => {
+  if (!('Notification' in window)) return alert('This browser does not support notifications.');
+  await Notification.requestPermission(); syncButtons();
+};
+$('#sound').onclick = () => { sound = !sound; localStorage.setItem('sound', sound ? '1' : '0'); if (sound) beep(); syncButtons(); };
+
+syncButtons(); poll(); setInterval(render, 1000);
+</script>
+</body>
+</html>
