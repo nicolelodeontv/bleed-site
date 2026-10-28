@@ -60,11 +60,10 @@ export default async function handler(req, res) {
     if (req.query.key) {
       if (req.query.key !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
       const now = Date.now();
-      const out = [];
-      for (const id of IDS) {
-      try { out.push(await pollClan(id, now)); }
-      catch (e) { out.push({ id, error: e.message }); }
-      }
+      const out = await Promise.all(IDS.map(async id => {
+        try { return await pollClan(id, now); }
+        catch (e) { return { id, error: e.message }; }
+      }));
       await fetch(`${REST}/rep_gains?at=lt.${now - KEEP}`, { method: 'DELETE', headers: H });
       return res.status(200).json({ ok: true, polled: out });
     }
