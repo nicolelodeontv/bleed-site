@@ -234,5 +234,59 @@ async function loadWins() {
 
 syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterval(history, 300000); setInterval(loadWins, 15000);
 </script>
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
+<style>
+#toasts{position:fixed;right:16px;top:calc(16px + env(safe-area-inset-top,0px));z-index:50;display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{pointer-events:auto;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#14141a;border:1px solid #2a2a36;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:tin .3s ease both}
+.toast.out{animation:tout .3s ease both}
+.toast b{display:block;font-size:14px}
+.toast small{color:#8b8b98;font-size:12px}
+.toast .g{color:#f5c542;font-weight:700;white-space:nowrap}
+@keyframes tin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateX(30px)}}
+</style>
+<script>
+(function () {
+  const seen = new Set();
+  let first = true, checking = false;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function toast(g) {
+    const box = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = '<div><b>' + esc(g.member) + '</b><small>' + esc(g.clan) + ' won a fight</small></div><div class="g">+' + g.gain.toLocaleString() + '</div>';
+    const close = () => {
+      if (!el.isConnected || el.classList.contains('out')) return;
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 300);
+    };
+    el.onclick = close;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(close, 8000);
+  }
+  async function check() {
+    if (checking) return;
+    checking = true;
+    try {
+      const r = await fetch('/api/members', { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.error || !Array.isArray(d.gains)) return;
+      d.gains.slice().reverse().forEach(g => {
+        const k = [g.at, g.clan, g.member, g.gain].join('|');
+        if (seen.has(k)) return;
+        seen.add(k);
+        if (seen.size > 600) seen.delete(seen.values().next().value);
+        if (!first) toast(g);
+      });
+      first = false;
+    } catch {}
+    finally { checking = false; }
+  }
+  check();
+  setInterval(check, 15000);
+})();
+</script>
 </body>
 </html>
