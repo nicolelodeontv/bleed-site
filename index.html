@@ -53,7 +53,18 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
 .note{color:var(--mute);font-size:12.5px;margin-top:14px}
 @media(max-width:640px){.hm{display:none}.stat b{font-size:20px}}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:10px}
-</style>
+@media(min-width:1000px){
+  main{max-width:1200px;display:grid;grid-template-columns:minmax(0,1fr) 300px;column-gap:24px;row-gap:0}
+  main>*{grid-column:1}
+  #fights{grid-column:2;grid-row:2/span 40;align-self:start;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+}
+#fights .fgrid{grid-template-columns:1fr 1fr;gap:6px}
+#fights .stat{padding:8px 10px}
+#fights .stat b{font-size:16px}
+#fights .card{padding:8px 10px;margin:6px 0;border-radius:10px}
+#fights .card b{font-size:13px}
+#fights .sub{font-size:11.5px}
+
 </head>
 <body>
 <main>
@@ -79,9 +90,11 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <h2 id="head">Bleeding now</h2>
   <div id="list"></div>
 
-  <h2>Clan fights · last hour</h2>
-  <div class="fgrid" id="fclans" aria-live="polite"></div>
-  <div id="wins" aria-live="polite"><div class="empty">Loading recent wins…</div></div>
+  <aside id="fights">
+    <h2>Clan fights · last hour</h2>
+    <div class="fgrid" id="fclans" aria-live="polite"></div>
+    <div id="wins" aria-live="polite"><div class="empty">Loading recent wins…</div></div>
+  </aside>
 
 
   <h2>Clan ranking</h2>
@@ -236,7 +249,7 @@ syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterv
 </script>
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <style>
-#toasts{position:fixed;right:16px;top:calc(16px + env(safe-area-inset-top,0px));z-index:50;display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none}
+#toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:50;display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none}
 .toast{pointer-events:auto;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#14141a;border:1px solid #2a2a36;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:tin .3s ease both}
 .toast.out{animation:tout .3s ease both}
 .toast b{display:block;font-size:14px}
