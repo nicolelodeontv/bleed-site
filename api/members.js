@@ -1,5 +1,5 @@
 // api/members.js
-// With ?key=CRON_SECRET  -> polls the tracked clans and records rep gains (call from cron-job.org every 5 min)
+// With ?key=CRON_SECRET  -> polls the tracked clans and records rep gains (call from cron-job.org every 1 min)
 // Without a key          -> returns the recent gains for the fights page
 
 const { SUPABASE_URL, CRON_SECRET, TRACK_CLANS } = process.env;
