@@ -60,7 +60,7 @@ function draw(){
   const s = $('status');
   s.className = 'sub' + (failed ? ' err' : '');
   s.textContent = failed ? 'Connection problem, showing the last data. Retrying…'
-    : d.checked_at ? 'Last check ' + ago(base - d.checked_at) : 'Live, refreshes every 30s';
+    : d.checked_at ? 'Last check ' + ago(base - d.checked_at) : 'Live, refreshes every 15s';
 }
 
 async function load(){
@@ -75,7 +75,7 @@ async function load(){
     if(!data) $('status').textContent = 'Connection problem: ' + e.message;
   }
   draw();
-  if(!document.hidden) timer = setTimeout(load, 30000);   // chained, so a slow response never overlaps; paused when hidden
+  if(!document.hidden) timer = setTimeout(load, 15000);   // chained, so a slow response never overlaps; paused when hidden
 }
 document.addEventListener('visibilitychange', () => { if(!document.hidden){ clearTimeout(timer); load(); } });
 load(); setInterval(draw, 1000);
