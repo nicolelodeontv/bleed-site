@@ -91,7 +91,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
 </main>
 
 <script>
-const POLL = 15000, TIMEOUT = 10000;
+const POLL = 5000, TIMEOUT = 10000;
 let state = { clans: [], bleeding: {}, checked_at: 0, stale: false }, known = null, failed = 0, q = '', showAll = false, timer;
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let sound = store.get('sound') === '1';
@@ -119,7 +119,7 @@ function alertStart(name, lost) {
 function setStatus(now) {
   const old = state.checked_at && now - state.checked_at > 60000, bad = failed || state.stale || old, s = $('#status');
   s.className = 'pill' + (bad ? ' err' : '');
-  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : bad ? 'Data may be stale' : 'Live · refreshes every 15s');
+  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : bad ? 'Data may be stale' : 'Live · refreshes every 5s');
 }
 
 function render() {
