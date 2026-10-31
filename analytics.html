@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090a0f">
+<title>Season Analytics · Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#090a0f;--panel:#12141c;--panel2:#171a24;--line:#282c39;--text:#f4f5f7;--muted:#9499a8;--gold:#f5c542;--green:#40c982;--red:#ff6572;--blue:#83aaff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1b1d2a 0,transparent 55%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:inherit}
+.shell{max-width:1250px;margin:auto;padding:24px 18px 56px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+nav a,.btn,select{border:1px solid var(--line);background:#11131b;color:#dce0e9;border-radius:9px;padding:8px 12px;text-decoration:none;font:inherit}
+nav a:hover,.btn:hover{border-color:#6a5a2b;color:var(--gold)}
+.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+.eyebrow{font-size:11px;letter-spacing:.16em;font-weight:800;color:var(--gold);text-transform:uppercase}
+h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.04em;margin:5px 0}
+.sub{color:var(--muted)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select{min-width:135px}
+.status{border:1px solid var(--line);border-radius:10px;background:#11131b;color:var(--muted);padding:10px 12px;margin:12px 0 18px}
+.status.warn{border-color:#594a27;color:#e9d18b}
+.status.error{border-color:#69333d;color:#ff9da6}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.stat,.panel{background:linear-gradient(145deg,rgba(255,255,255,.025),transparent 52%),var(--panel);border:1px solid var(--line);border-radius:14px}
+.stat{padding:15px 16px}
+.stat .label{color:var(--muted);font-size:12px}
+.stat .value{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.03em;margin-top:4px}
+.stat .hint{font-size:11px;color:var(--muted);margin-top:2px}
+.layout{display:grid;grid-template-columns:1.35fr 1fr;gap:12px}
+.panel{padding:17px;min-width:0;margin-bottom:12px}
+.panel h2{font-size:16px;margin:0 0 3px;letter-spacing:-.02em}
+.panel .desc{color:var(--muted);font-size:12px;margin:0 0 13px}
+.full{grid-column:1/-1}
+canvas{display:block;width:100%;height:260px}
+.chart-foot{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;margin-top:4px}
+.heat-scroll{overflow:auto;padding-bottom:4px}
+.heat-grid{display:grid;grid-template-columns:140px repeat(56,minmax(10px,1fr));gap:4px;min-width:900px;align-items:center}
+.heat-name{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#dce0e9}
+.heat-cell{height:13px;border-radius:3px;background:#252a36;outline:1px solid rgba(255,255,255,.025)}
+.heat-cell[data-level="1"]{background:#17432f}.heat-cell[data-level="2"]{background:#1e7549}.heat-cell[data-level="3"]{background:#36a86b}.heat-cell[data-level="4"]{background:#77d99f}
+.heat-legend{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:10px;margin-top:10px}
+.heat-legend i{display:block;width:11px;height:11px;border-radius:3px;background:#252a36}
+.heat-legend i:nth-of-type(2){background:#17432f}.heat-legend i:nth-of-type(3){background:#1e7549}.heat-legend i:nth-of-type(4){background:#36a86b}.heat-legend i:nth-of-type(5){background:#77d99f}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:9px 8px;border-bottom:1px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.055)}
+tbody tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.up{color:var(--green);font-weight:700}.down{color:var(--red);font-weight:700}.flat{color:var(--muted)}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:10px;color:var(--muted)}
+.pill.increasing,.pill.started{color:var(--green);border-color:#285d43}.pill.slowing{color:#ff9b78;border-color:#71432e}.pill.steady{color:var(--blue);border-color:#364a70}.pill.no-gains{color:var(--muted)}
+.week-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.week-card{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}
+.week-card .wk-label{color:var(--muted);font-size:11px}
+.week-card .wk-total{font-size:22px;font-weight:800;margin:3px 0}
+.week-card .wk-meta{font-size:11px;color:var(--muted)}
+.week-list{list-style:none;margin:12px 0 0;padding:0}
+.week-list li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.055);font-size:12px}
+.week-list b{font-variant-numeric:tabular-nums;color:var(--gold)}
+.empty{color:var(--muted);text-align:center;padding:22px 8px;font-size:12px}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px}
+.btn{cursor:pointer}
+.note{font-size:11px;color:var(--muted);line-height:1.5;margin-top:10px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.full{grid-column:auto}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.shell{padding:16px 12px 42px}.stats{gap:8px}.stat{padding:12px}.stat .value{font-size:21px}.panel{padding:13px}.week-grid{grid-template-columns:1fr}.controls{width:100%}.controls select{flex:1}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <a href="/">← Bleed Watch</a>
+    <a href="/activity.html">📈 Member Activity</a>
+    <a href="/seasons.html">🏆 Seasons</a>
+    <a href="/records.html">🏅 Personal Records</a>
+    <a href="/compare.html">📊 Compare</a>
+  </nav>
+  <header class="head">
+    <div><div class="eyebrow">Season performance</div><h1>Season Analytics</h1><div class="sub">Growth, consistency, member momentum and leaderboard movement.</div></div>
+    <div class="controls"><label for="season-select" class="sub">Season</label><select id="season-select" aria-label="Select season"></select><button class="btn" id="refresh">↻ Refresh</button></div>
+  </header>
+  <div id="status" class="status">Loading season analytics…</div>
+  <section class="stats">
+    <div class="stat"><div class="label">Tracked reputation</div><div class="value" id="total-gain">—</div><div class="hint" id="coverage-label">Daily ledger coverage</div></div>
+    <div class="stat"><div class="label">Active members</div><div class="value" id="active-members">—</div><div class="hint">Members with recorded gains</div></div>
+    <div class="stat"><div class="label">Current week</div><div class="value" id="week-gain">—</div><div class="hint" id="week-label">Monday–today · Manila time</div></div>
+    <div class="stat"><div class="label">Tracked calendar days</div><div class="value" id="tracked-days">—</div><div class="hint" id="rank-coverage">Rank snapshots collecting</div></div>
+  </section>
+  <div class="layout">
+    <section class="panel">
+      <h2>Season growth</h2><p class="desc">Daily reputation gained and cumulative gain since the daily ledger began.</p>
+      <canvas id="growth-chart" aria-label="Daily reputation growth chart"></canvas>
+      <div class="chart-foot"><span id="growth-start">First tracked day</span><span id="growth-end">Latest tracked day</span></div>
+    </section>
+    <section class="panel">
+      <h2>Weekly report</h2><p class="desc">Monday–Sunday totals, using only recorded daily gains.</p>
+      <div class="week-grid">
+        <div class="week-card"><div class="wk-label">CURRENT WEEK</div><div class="wk-total" id="current-week-total">—</div><div class="wk-meta" id="current-week-meta">—</div><ul class="week-list" id="current-week-list"></ul></div>
+        <div class="week-card"><div class="wk-label">PREVIOUS WEEK</div><div class="wk-total" id="previous-week-total">—</div><div class="wk-meta" id="previous-week-meta">—</div><ul class="week-list" id="previous-week-list"></ul></div>
+      </div>
+      <div class="note" id="weekly-note">Weekly summaries use the daily ledger only.</div>
+    </section>
+    <section class="panel full">
+      <h2>Activity heatmap</h2><p class="desc">Daily reputation gained by member over the most recent 56 Manila calendar days. Dark cells indicate no recorded gain.</p>
+      <div class="heat-scroll"><div class="heat-grid" id="heatmap"></div></div>
+      <div class="heat-legend">Less <i></i><i></i><i></i><i></i><i></i> More</div>
+      <div class="note" id="heat-note"></div>
+    </section>
+    <section class="panel">
+      <h2>Member momentum</h2><p class="desc">Last 7 calendar days versus the preceding 7 days.</p>
+      <div class="table-wrap"><table><thead><tr><th>Member</th><th class="num">Last 7d</th><th class="num">Prev. 7d</th><th>Status</th></tr></thead><tbody id="momentum-body"><tr><td colspan="4" class="empty">Waiting for data…</td></tr></tbody></table></div>
+      <div class="note" id="momentum-note"></div>
+    </section>
+    <section class="panel">
+      <h2>Leaderboard movement</h2><p class="desc">Current daily rank compared with the latest saved snapshot from on or before seven days ago.</p>
+      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Member</th><th class="num">Change</th><th class="num">Season rep</th></tr></thead><tbody id="movement-body"><tr><td colspan="4" class="empty">Waiting for snapshots…</td></tr></tbody></table></div>
+      <div class="note" id="movement-note"></div>
+    </section>
+  </div>
+  <div class="actions"><button class="btn" id="export-csv">↓ Export analytics CSV</button></div>
+  <div class="note">Coverage note: daily totals begin when durable daily tracking was enabled. Rank movement begins with the first saved daily rank snapshot. Earlier 30-day event history is not treated as complete daily history.</div>
+</div>
+<script>
+(function(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const number = value => Number(value || 0).toLocaleString();
+  let current = null;
+  let busy = false;
+
+  function setStatus(message, type) {
+    const node = $('status');
+    node.textContent = message;
+    node.className = 'status' + (type ? ' ' + type : '');
+  }
+  function showWeek(prefix, week) {
+    $(prefix + '-total').textContent = number(week.total_gain) + ' rep';
+    $(prefix + '-meta').textContent = week.start + ' – ' + week.end + ' · ' +
+      number(week.active_members) + ' active · ' + number(week.total_events) + ' increases';
+    $(prefix + '-list').innerHTML = week.top_gainers.length
+      ? week.top_gainers.map(row => '<li><span>' + esc(row.member) + '</span><b>+' + number(row.gain) + '</b></li>').join('')
+      : '<li class="empty">No recorded gains</li>';
+  }
+  function drawGrowth(rows) {
+    const canvas = $('growth-chart');
+    const width = Math.max(300, canvas.clientWidth || 600);
+    const height = 260;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    ctx.clearRect(0,0,width,height);
+    if (!rows.length) {
+      ctx.fillStyle = '#9499a8'; ctx.font = '13px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Daily growth will appear after recorded gains.', width/2, height/2);
+      return;
+    }
+    const left = 42, right = 12, top = 14, bottom = 32;
+    const plotW = width-left-right, plotH = height-top-bottom;
+    const max = Math.max(1, ...rows.map(row => Number(row.gain || 0)));
+    const cumulative = [];
+    let running = 0;
+    rows.forEach(row => { running += Number(row.gain || 0); cumulative.push(running); });
+    const maxC = Math.max(1, cumulative[cumulative.length-1]);
+    ctx.font = '10px system-ui'; ctx.textAlign = 'right'; ctx.fillStyle = '#9499a8';
+    for (let i=0;i<=4;i++) {
+      const y = top + plotH*i/4;
+      ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(width-right,y); ctx.stroke();
+      ctx.fillText(number(Math.round(max*(4-i)/4)), left-7, y+3);
+    }
+    const step = plotW / rows.length;
+    const barW = Math.max(2, Math.min(18, step*.65));
+    rows.forEach((row,i) => {
+      const value = Number(row.gain || 0);
+      const x = left + step*i + (step-barW)/2;
+      const bh = value/max*plotH;
+      ctx.fillStyle = '#735d25';
+      ctx.fillRect(x, top+plotH-bh, barW, bh);
+    });
+    ctx.beginPath();
+    cumulative.forEach((value,i) => {
+      const x = left + (rows.length===1 ? plotW/2 : step*i+step/2);
+      const y = top + plotH - value/maxC*plotH;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle = '#f5c542'; ctx.lineWidth = 2; ctx.stroke();
+    const indexes = [0,Math.floor((rows.length-1)/2),rows.length-1];
+    ctx.textAlign = 'center'; ctx.fillStyle = '#9499a8';
+    [...new Set(indexes)].forEach(i => {
+      const x = left + (rows.length===1 ? plotW/2 : step*i+step/2);
+      ctx.fillText(rows[i].date.slice(5), x, height-9);
+    });
+  }
+  function drawHeatmap(data) {
+    const node = $('heatmap');
+    if (!data.members.length) {
+      node.innerHTML = '<div class="empty" style="grid-column:1/-1">The daily ledger has not recorded any member activity yet.</div>';
+      return;
+    }
+    const dates = data.dates || [];
+    const header = '<div></div>' + dates.map((date,i) =>
+      '<div class="heat-name" style="font-size:9px;text-align:center">' +
+      (i%7===0 ? date.slice(5) : '') + '</div>'
+    ).join('');
+    const rows = data.members.map(member => {
+      const cells = member.days.map(day => {
+        const gain = Number(day.gain || 0);
+        const level = gain <= 0 ? 0 : gain < 5 ? 1 : gain < 25 ? 2 : gain < 100 ? 3 : 4;
+        return '<div class="heat-cell" data-level="' + level + '" title="' +
+          esc(member.member + ' · ' + day.date + ' · +' + number(gain) + ' rep · ' + number(day.events) + ' increases') + '"></div>';
+      }).join('');
+      return '<div class="heat-name" title="' + esc(member.member) + '">' + esc(member.member) + '</div>' + cells;
+    }).join('');
+    node.innerHTML = header + rows;
+  }
+  function renderMomentum(data) {
+    const rows = data.members || [];
+    $('momentum-body').innerHTML = rows.length ? rows.map(row => {
+      const status = row.status.replace(/\s+/g,'-');
+      const diff = Number(row.change || 0);
+      return '<tr><td>' + esc(row.member) + '</td><td class="num">+' + number(row.last_7d_gain) + '</td>' +
+        '<td class="num">+' + number(row.previous_7d_gain) + '</td><td><span class="pill ' + status + '">' + esc(row.status) + '</span></td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">No current season members.</td></tr>';
+    $('momentum-note').textContent = data.note || '';
+  }
+  function renderMovement(data) {
+    const rows = (data.members || []).slice(0,30);
+    $('movement-body').innerHTML = rows.length ? rows.map(row => {
+      let movement = '—', cls = 'flat';
+      if (row.rank_change != null) {
+        if (row.rank_change > 0) { movement = '▲ ' + row.rank_change; cls = 'up'; }
+        else if (row.rank_change < 0) { movement = '▼ ' + Math.abs(row.rank_change); cls = 'down'; }
+        else movement = '–';
+      }
+      return '<tr><td>#' + number(row.rank) + '</td><td>' + esc(row.member) + '</td>' +
+        '<td class="num ' + cls + '">' + movement + '</td><td class="num">' + number(row.season_gain) + '</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">No rank snapshots yet. They are saved during successful shared polls.</td></tr>';
+    $('movement-note').textContent = data.note || '';
+  }
+  function render(data) {
+    current = data;
+    const summary = data.summary || {};
+    $('total-gain').textContent = number(summary.total_gain_tracked);
+    $('coverage-label').textContent = summary.first_tracked_day
+      ? summary.first_tracked_day + ' → ' + (summary.last_tracked_day || '—') : 'Waiting for first daily gain';
+    $('active-members').textContent = number(summary.active_members);
+    $('week-gain').textContent = number(summary.current_week_gain) + ' rep';
+    $('week-label').textContent = data.weekly.current.start + ' → ' + data.weekly.current.end;
+    $('tracked-days').textContent = number(summary.tracked_days);
+    $('rank-coverage').textContent = summary.ranking_members
+      ? number(summary.ranking_members) + ' members · latest ' + summary.ranking_snapshot_date
+      : 'First daily snapshot pending';
+    $('growth-start').textContent = summary.first_tracked_day || 'No daily history';
+    $('growth-end').textContent = summary.last_tracked_day || 'Waiting for gains';
+    drawGrowth(data.daily_totals || []);
+    drawHeatmap(data.heatmap || {dates:[],members:[]});
+    showWeek('current-week', data.weekly.current);
+    showWeek('previous-week', data.weekly.previous);
+    $('weekly-note').textContent = 'Current week to date: ' + number(data.weekly.current.active_members) +
+      ' members recorded gains. Daily totals currently cover ' + number(summary.tracked_days) + ' calendar days.';
+    $('heat-note').textContent = 'Showing ' + (data.heatmap.start || '') + ' through ' + (data.heatmap.end || '') +
+      ' · top 18 members by tracked reputation gained.';
+    renderMomentum(data.momentum);
+    renderMovement(data.rank_movement);
+    const note = data.daily_tracking_note || '';
+    const historic = summary.first_tracked_day
+      ? 'Daily coverage: ' + summary.first_tracked_day + ' onward.' : 'Waiting for the first recorded daily gain.';
+    setStatus('Season ' + data.season.season_number + ' · ' + (data.season.status === 'active' ? 'Active' : 'Completed') +
+      ' · ' + historic + ' ' + note, summary.tracked_days ? '' : 'warn');
+    document.title = 'Season ' + data.season.season_number + ' Analytics · Bleed Watch';
+  }
+  async function load(season) {
+    if (busy) return;
+    busy = true;
+    $('refresh').disabled = true;
+    setStatus('Loading season analytics…');
+    try {
+      const url = '/api/seasons?view=analytics' + (season ? '&season=' + encodeURIComponent(season) : '');
+      const response = await fetch(url, {cache:'no-store'});
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Analytics request failed (' + response.status + ')');
+      const select = $('season-select');
+      const previous = season || String(body.season.season_number);
+      select.innerHTML = body.seasons.map(item => '<option value="' + item.season_number + '">' +
+        'Season ' + item.season_number + (item.status === 'active' ? ' · Active' : '') + '</option>').join('');
+      select.value = previous;
+      render(body);
+    } catch (error) {
+      setStatus(error.message || 'Unable to load analytics.', 'error');
+    } finally {
+      busy = false;
+      $('refresh').disabled = false;
+    }
+  }
+  function exportCsv() {
+    if (!current) return;
+    const lines = [['type','date','member','gain','events','rank','previous_rank','rank_change']];
+    (current.daily_totals || []).forEach(row => lines.push([
+      'daily_total',row.date,'',row.gain,row.events,'','',''
+    ]));
+    (current.heatmap.members || []).forEach(member => member.days.forEach(day => {
+      if (day.gain || day.events) lines.push(['member_day',day.date,member.member,day.gain,day.events,'','','']);
+    }));
+    (current.rank_movement.members || []).forEach(row => lines.push([
+      'rank_movement',current.rank_movement.current_date,row.member,'','',
+      row.rank,row.previous_rank == null ? '' : row.previous_rank,
+      row.rank_change == null ? '' : row.rank_change
+    ]));
+    const csv = lines.map(row => row.map(value => '"' + String(value == null ? '' : value).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'chaos-season-' + current.season.season_number + '-analytics.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+  $('season-select').addEventListener('change', event => load(event.target.value));
+  $('refresh').addEventListener('click', () => load($('season-select').value));
+  $('export-csv').addEventListener('click', exportCsv);
+  window.addEventListener('resize', () => { if (current) drawGrowth(current.daily_totals || []); });
+  load('');
+})();
+</script>
+</body>
+</html>
