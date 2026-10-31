@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
   try {
     const memberQuery = new URLSearchParams({
-      select: 'season_number,member,starting_rep,current_rep,season_gain,gain_events,active_days,last_gain_at,last_gain_day,updated_at',
+      select: 'season_number,member,starting_rep,current_rep,season_gain,gain_events,active_days,longest_streak_days,last_gain_at,last_gain_day,updated_at',
       member: 'eq.' + name,
       order: 'season_number.desc',
       limit: '100',
