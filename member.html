@@ -396,7 +396,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 
   function currentRecordValue(key, season) {
     const value = Number(season && (key === 'longest_streak' ? season.best_streak_days : season[key]) || 0);
-    if (key === 'active_days' || key === 'best_streak_days') return fmt(value) + ' days';
+    if (key === 'active_days' || key === 'longest_streak') return fmt(value) + ' days';
     if (key === 'gain_events') return fmt(value) + ' increases';
     return '+' + fmt(value) + ' rep';
   }
