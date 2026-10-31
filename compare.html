@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Comparison · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--gold:#f5c542;--accent:#ff4d5a}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.10),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1200px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a2110,#100d07);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}
+a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a,.action{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:13px}
+.nav .highlight,.action.highlight{border-color:#51421f;background:#171309;color:var(--gold)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:28px 0 10px;font-weight:700}
+.panel h2{margin:0}
+button,input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px}
+button{cursor:pointer;font-size:12px}
+button:hover,input:focus{border-color:#545466;outline:none}
+button:disabled{opacity:.45;cursor:not-allowed}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.selection-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--mute);font-size:11px}
+.member-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#member-search{min-width:210px;flex:1}
+.member-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;max-height:280px;overflow:auto}
+.member-option{display:flex;align-items:center;gap:9px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f;cursor:pointer}
+.member-option:has(input:checked){border-color:#51421f;background:#171309}
+.member-option input{accent-color:#f5c542;width:16px;height:16px;flex:0 0 auto}
+.member-option input:disabled{opacity:.35}
+.member-option .member-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:13px}
+.member-option .rank{color:var(--mute);font-size:11px;font-variant-numeric:tabular-nums}
+.selection-note{margin-top:10px;color:var(--mute);font-size:12px}
+.selection-note.error{color:#ff7b84}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.member-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;min-width:0;position:relative;overflow:hidden}
+.member-card:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--member-color)}
+.member-card h3{margin:0 0 7px;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-card .rankline{color:var(--mute);font-size:11px;margin-bottom:10px}
+.member-card .main-value{font-size:23px;font-weight:750;font-variant-numeric:tabular-nums;line-height:1.2}
+.member-card .main-label{color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.member-card .small-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.member-card .small-grid span{display:block;color:var(--mute);font-size:10px;text-transform:uppercase}
+.member-card .small-grid b{font-size:13px;font-variant-numeric:tabular-nums}
+.member-card .profile-link{display:inline-block;font-size:11px;margin-top:10px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.gain{color:var(--gold);font-weight:700}
+.empty{padding:24px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
+.chart-wrap{width:100%;overflow:hidden}
+#comparison-chart{display:block;width:100%;height:auto;min-height:230px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.legend-item{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:12px}
+.legend-swatch{width:18px;height:3px;border-radius:4px}
+.range-buttons button.active{border-color:#6e5724;background:#1b160b;color:var(--gold)}
+.status{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}
+.error{color:#ff7b84}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+@media(max-width:900px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.member-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){main{padding:18px 12px 48px}.panel{padding:12px}.cards{grid-template-columns:1fr 1fr}.member-list{grid-template-columns:1fr}.member-card{padding:11px}.member-card .main-value{font-size:20px}h1{font-size:20px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">📊</div><div><h1>Member Comparison</h1><div class="sub">Compare Chaos member growth and activity</div></div></div>
+  <nav class="nav"><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+</header>
+
+<section class="panel">
+  <div class="panel-head">
+    <div><h2>Choose members</h2><div class="sub">Select 2–4 members to compare side by side</div></div>
+    <div class="selection-meta"><span class="pill" id="selection-count">0 / 4 selected</span><div class="toolbar"><button id="top-four" type="button">Top 4 by reputation</button><button id="clear-selection" type="button">Clear</button></div></div>
+  </div>
+  <div class="member-tools"><input id="member-search" type="search" placeholder="Search Chaos members" autocomplete="off"><span class="sub" id="roster-count">Loading roster…</span></div>
+  <div class="member-list" id="member-list"><div class="empty">Loading Chaos members…</div></div>
+  <div class="selection-note" id="selection-note">The comparison uses the latest saved member activity. Selection is remembered in this browser.</div>
+</section>
+
+<section id="comparison" hidden>
+  <h2>At a glance</h2>
+  <div class="cards" id="member-cards"></div>
+
+  <h2>Growth comparison</h2>
+  <section class="panel">
+    <div class="panel-head"><div><strong>Daily reputation gained</strong><div class="sub">Compare recorded daily gains across selected members</div></div>
+      <div class="toolbar range-buttons" id="range-buttons"><button type="button" data-days="7">7 days</button><button type="button" data-days="30" class="active">30 days</button></div>
+    </div>
+    <div class="chart-wrap" id="chart-holder"><div class="empty">Select at least two members to display the comparison.</div></div>
+    <div class="legend" id="chart-legend"></div>
+  </section>
+
+  <h2>Detailed comparison</h2>
+  <section class="panel">
+    <div class="panel-head"><div><strong>Member statistics</strong><div class="sub">Current rank and recorded reputation increases</div></div><span class="sub">Active days and gain events are measured over the last 30 days</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Member</th><th class="num">Rank</th><th class="num">Level</th><th class="num">Current rep</th><th class="num">24h gain</th><th class="num">7d gain</th><th class="num">30d gain</th><th class="num">Active days</th><th class="num">Gain events</th></tr></thead>
+      <tbody id="comparison-rows"></tbody>
+    </table></div>
+    <div class="note">Gain events are reputation changes detected between shared game reads; they are not guaranteed individual fight counts. Historical data grows as polling records more activity.</div>
+  </section>
+</section>
+
+<div class="status"><span class="sub" id="status-message">Loading comparison data…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
+</main>
+<script>
+(function () {
+  const TZ = 'Asia/Manila';
+  const COLORS = ['#f5c542','#65c9a8','#8e9cff','#ff8793'];
+  const $ = id => document.getElementById(id);
+  const fmt = value => Number(value || 0).toLocaleString();
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let data = null, selected = [], rangeDays = 30, busy = false;
+
+  function dayKey(date) {
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+    const out = {};
+    parts.forEach(part => { out[part.type] = part.value; });
+    return out.year + '-' + out.month + '-' + out.day;
+  }
+  function parseDay(key) {
+    const parts = key.split('-').map(Number);
+    return new Date(Date.UTC(parts[0],parts[1]-1,parts[2],12));
+  }
+  function shiftDay(key, amount) {
+    const date = parseDay(key);
+    date.setUTCDate(date.getUTCDate()+amount);
+    return date.toISOString().slice(0,10);
+  }
+  function dateLabel(key) {
+    return new Intl.DateTimeFormat('en',{timeZone:TZ,month:'short',day:'numeric'}).format(parseDay(key));
+  }
+  function rankedMembers() {
+    return data.members.slice().filter(member => member && member.name)
+      .sort((a,b) => Number(b.rep || 0)-Number(a.rep || 0))
+      .map((member,index) => Object.assign({},member,{rank:index+1}));
+  }
+  function activityFor(name) {
+    return data.activity.filter(row => row.member === name);
+  }
+  function statFor(name) {
+    return data.stats.find(row => row.member === name) || {};
+  }
+  function metricsFor(name) {
+    const today = dayKey(new Date()), first = shiftDay(today,-29);
+    const rows = activityFor(name).filter(row => row.day >= first && row.day <= today);
+    return {
+      activeDays: rows.filter(row => Number(row.gain || 0) > 0).length,
+      events: rows.reduce((sum,row) => sum + Number(row.events || 0),0),
+      daily: new Map(rows.map(row => [row.day,Number(row.gain || 0)]))
+    };
+  }
+  function loadSelection() {
+    const available = new Set(rankedMembers().map(member => member.name));
+    let saved = [];
+    try {
+      const raw = JSON.parse(localStorage.getItem('compareMembers') || 'null');
+      if (Array.isArray(raw)) saved = raw.filter(name => typeof name === 'string' && available.has(name)).slice(0,4);
+    } catch {}
+    selected = saved.length ? saved : rankedMembers().slice(0,4).map(member => member.name);
+    saveSelection();
+  }
+  function saveSelection() {
+    selected = selected.slice(0,4);
+    try { localStorage.setItem('compareMembers',JSON.stringify(selected)); } catch {}
+  }
+  function renderMemberList() {
+    const query = $('member-search').value.trim().toLowerCase();
+    const members = rankedMembers().filter(member => member.name.toLowerCase().includes(query));
+    $('roster-count').textContent = members.length + ' of ' + data.members.length + ' members';
+    $('selection-count').textContent = selected.length + ' / 4 selected';
+    $('member-list').innerHTML = members.length ? members.map(member => {
+      const checked = selected.includes(member.name);
+      const disabled = selected.length >= 4 && !checked;
+      return '<label class="member-option"><input type="checkbox" value="' + esc(member.name) + '"' + (checked?' checked':'') + (disabled?' disabled':'') + '><span class="member-name">' + esc(member.name) + '</span><span class="rank">#' + member.rank + '</span></label>';
+    }).join('') : '<div class="empty">No members match that search.</div>';
+    const note = $('selection-note');
+    note.classList.toggle('error',selected.length < 2);
+    note.textContent = selected.length < 2
+      ? 'Select at least two members to compare. You can choose up to four.'
+      : 'Comparing ' + selected.length + ' members. Selection is remembered in this browser.';
+  }
+  function renderCards() {
+    const roster = rankedMembers();
+    const cards = selected.map((name,index) => {
+      const member = roster.find(item => item.name === name);
+      if (!member) return '';
+      const stats = statFor(name), metrics = metricsFor(name);
+      const isLeader = Number(stats.gain_30d || 0) === Math.max(...selected.map(item => Number(statFor(item).gain_30d || 0)));
+      return '<article class="member-card" style="--member-color:' + COLORS[index] + '">' +
+        '<h3>' + esc(name) + '</h3><div class="rankline">Rank #' + member.rank + ' · Level ' + (member.level == null ? '—' : esc(member.level)) + (isLeader && Number(stats.gain_30d || 0)>0 ? ' · Top 30d gain' : '') + '</div>' +
+        '<div class="main-value">' + fmt(member.rep) + '</div><div class="main-label">Current reputation</div>' +
+        '<div class="small-grid"><div><span>24h gain</span><b>+' + fmt(stats.gain_24h) + '</b></div><div><span>7d gain</span><b>+' + fmt(stats.gain_7d) + '</b></div><div><span>30d gain</span><b>+' + fmt(stats.gain_30d) + '</b></div><div><span>Active days</span><b>' + metrics.activeDays + ' / 30</b></div></div>' +
+        '<a class="profile-link" href="/member.html?name=' + encodeURIComponent(name) + '">Open member profile ↗</a></article>';
+    }).join('');
+    $('member-cards').innerHTML = cards;
+  }
+  function renderTable() {
+    const roster = rankedMembers();
+    $('comparison-rows').innerHTML = selected.map((name,index) => {
+      const member = roster.find(item => item.name === name);
+      if (!member) return '';
+      const stats = statFor(name), metrics = metricsFor(name);
+      return '<tr><td><span style="color:' + COLORS[index] + '">●</span> <a href="/member.html?name=' + encodeURIComponent(name) + '">' + esc(name) + '</a></td>' +
+        '<td class="num">#' + member.rank + '</td><td class="num">' + (member.level == null ? '—' : esc(member.level)) + '</td><td class="num">' + fmt(member.rep) + '</td>' +
+        '<td class="num gain">+' + fmt(stats.gain_24h) + '</td><td class="num gain">+' + fmt(stats.gain_7d) + '</td><td class="num gain">+' + fmt(stats.gain_30d) + '</td>' +
+        '<td class="num">' + metrics.activeDays + '</td><td class="num">' + fmt(metrics.events) + '</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty">No members selected.</td></tr>';
+  }
+  function renderChart() {
+    if (selected.length < 2) {
+      $('chart-holder').innerHTML = '<div class="empty">Select at least two members to display a growth comparison.</div>';
+      $('chart-legend').innerHTML = '';
+      return;
+    }
+    const today = dayKey(new Date()), first = shiftDay(today,-(rangeDays-1));
+    const days = [];
+    for (let i=0;i<rangeDays;i++) days.push(shiftDay(first,i));
+    const series = selected.map((name,index) => {
+      const metrics = metricsFor(name);
+      return {name,color:COLORS[index],values:days.map(day => metrics.daily.get(day) || 0)};
+    });
+    const max = Math.max(10,...series.flatMap(item => item.values));
+    const top = Math.ceil(max/4)*4 || max;
+    const W=960,H=300,L=62,R=18,T=20,B=42,plotW=W-L-R,plotH=H-T-B;
+    let svg = '<svg id="comparison-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Daily reputation gains for selected Chaos members">';
+    for(let i=0;i<=4;i++){
+      const value=top*i/4,y=T+plotH-(value/top)*plotH;
+      svg += '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#292934" stroke-width="1"/>';
+      svg += '<text x="'+(L-10)+'" y="'+(y+4)+'" fill="#8b8b98" text-anchor="end" font-size="11">'+fmt(value)+'</text>';
+    }
+    days.forEach((day,index)=>{
+      if(index%(rangeDays===7?1:5)===0 || index===days.length-1){
+        const x=L+(rangeDays===1?0:index/(days.length-1))*plotW;
+        svg += '<text x="'+x.toFixed(1)+'" y="'+(H-15)+'" fill="#8b8b98" text-anchor="middle" font-size="11">'+dateLabel(day)+'</text>';
+      }
+    });
+    series.forEach(item=>{
+      const points=item.values.map((value,index)=>{
+        const x=L+(rangeDays===1?0:index/(days.length-1))*plotW;
+        const y=T+plotH-(value/top)*plotH;
+        return {x,y,value,day:days[index]};
+      });
+      svg += '<polyline fill="none" stroke="'+item.color+'" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" points="'+points.map(point=>point.x.toFixed(1)+','+point.y.toFixed(1)).join(' ')+'"/>';
+      points.forEach(point=>{
+        if(point.value>0) svg += '<circle cx="'+point.x.toFixed(1)+'" cy="'+point.y.toFixed(1)+'" r="3.4" fill="'+item.color+'"><title>'+esc(item.name)+' · '+dateLabel(point.day)+': +'+fmt(point.value)+' rep</title></circle>';
+      });
+    });
+    svg += '</svg>';
+    $('chart-holder').innerHTML = svg;
+    $('chart-legend').innerHTML = series.map(item => '<span class="legend-item"><i class="legend-swatch" style="background:'+item.color+'"></i>'+esc(item.name)+'</span>').join('');
+    document.querySelectorAll('[data-days]').forEach(button => button.classList.toggle('active',Number(button.dataset.days)===rangeDays));
+  }
+  function render() {
+    renderMemberList();
+    const enough = selected.length >= 2;
+    $('comparison').hidden = !selected.length;
+    if (enough) {
+      renderCards();
+      renderTable();
+      renderChart();
+    } else {
+      $('member-cards').innerHTML = '';
+      $('comparison-rows').innerHTML = '<tr><td colspan="9" class="empty">Choose at least two members to compare.</td></tr>';
+      renderChart();
+    }
+    $('status-message').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
+      ' · ' + data.members.length + ' current members · ' + data.activity.length + ' member-day records';
+  }
+  async function load() {
+    if (busy) return;
+    busy = true;
+    try {
+      const response = await fetch('/api/activity',{cache:'no-store'});
+      if (!response.ok) throw new Error('Activity API returned HTTP '+response.status);
+      const next = await response.json();
+      if (!Array.isArray(next.members)||!Array.isArray(next.activity)||!Array.isArray(next.stats)) throw new Error('Activity API returned incomplete comparison data');
+      const prior = data;
+      data = next;
+      if (!prior) loadSelection();
+      else {
+        const available = new Set(rankedMembers().map(member=>member.name));
+        selected = selected.filter(name=>available.has(name)).slice(0,4);
+        saveSelection();
+      }
+      render();
+      $('status-message').classList.remove('error');
+    } catch(error) {
+      $('status-message').textContent = error.message;
+      $('status-message').classList.add('error');
+      if (!data) $('member-list').innerHTML = '<div class="empty error">Unable to load comparison data. Please refresh.</div>';
+    } finally { busy = false; }
+  }
+
+  $('member-list').addEventListener('change',event=>{
+    const input=event.target.closest('input[type="checkbox"]');
+    if (!input) return;
+    if (input.checked) {
+      if (selected.length >= 4) { input.checked=false; return; }
+      selected.push(input.value);
+    } else selected=selected.filter(name=>name!==input.value);
+    saveSelection();
+    render();
+  });
+  $('member-search').addEventListener('input',renderMemberList);
+  $('top-four').addEventListener('click',()=>{
+    selected=rankedMembers().slice(0,4).map(member=>member.name);
+    saveSelection();render();
+  });
+  $('clear-selection').addEventListener('click',()=>{selected=[];saveSelection();render();});
+  $('range-buttons').addEventListener('click',event=>{
+    const button=event.target.closest('[data-days]');
+    if(!button) return;
+    rangeDays=Number(button.dataset.days)===7?7:30;
+    renderChart();
+  });
+  load();
+  setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
