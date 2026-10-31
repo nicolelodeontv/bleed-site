@@ -93,6 +93,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <aside id="fights">
     <h2>Clan fights · last hour</h2>
     <div class="fgrid" id="fclans" aria-live="polite"></div>
+    <div id="livewins"></div>
     <div id="wins" aria-live="polite"><div class="empty">Loading recent wins…</div></div>
   </aside>
 
@@ -301,5 +302,84 @@ syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterv
   setInterval(check, 10000);
 })();
 </script>
+<style>.livetag{color:#ff4d5a;font-weight:700;letter-spacing:.04em}</style>
+<script>
+(function () {
+  const CLAN_IDS = [3];      // 3 = Chaos. Add approved clan IDs as needed.
+  const EVERY_MS = 5000;
+  const KEEP_MS = 90000;
+  const SRC = 'https://ninjazenshin.online/clan-ranking/members/';
+  const base = {}, ready = {};
+  let live = [], busy = false;
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const age = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's'; };
+
+  function render() {
+    const box = document.getElementById('livewins');
+    if (!box) return;
+    const now = Date.now();
+    live = live.filter(w => now - w.at < KEEP_MS);
+    box.innerHTML = live.map(w => '<div class="card" style="border-color:#5a2a30;background:linear-gradient(90deg,rgba(255,77,90,.08),var(--card) 70%)"><div class="l"><div><b>' + esc(w.member) + '</b><div class="sub">' + esc(w.clan) + ' · <span class="livetag">LIVE</span> · ' + age(now - w.at) + ' ago</div></div></div><div class="r"><div style="color:#f5c542;font-weight:600">+' + w.gain.toLocaleString() + ' rep</div></div></div>').join('');
+  }
+
+  async function check() {
+    if (busy || document.hidden) return;
+    busy = true;
+    try {
+      const res = await Promise.all(CLAN_IDS.map(async id => {
+        const response = await fetch(SRC + id, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Members request failed: ' + response.status);
+        return { id, d: await response.json() };
+      }));
+      const now = Date.now();
+      for (const { id, d } of res) {
+        const seen = new Set();
+        const members = (d.members || []).filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name));
+        const drops = members.filter(m => base[id + '|' + m.name] !== undefined && m.rep < base[id + '|' + m.name]).length;
+        const reset = drops > Math.max(3, members.length / 2);
+        for (const m of members) {
+          const k = id + '|' + m.name;
+          if (ready[id] && !reset && base[k] !== undefined && m.rep > base[k]) {
+            live.unshift({ at: now, clan: d.name, member: m.name, gain: m.rep - base[k] });
+          }
+          base[k] = m.rep;
+        }
+        ready[id] = true;
+      }
+      live = live.slice(0, 12);
+      render();
+    } catch (e) {
+      // Blocked cross-origin requests or network errors leave the recorded feed untouched.
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function dedupe() {
+    if (!live.length) return;
+    try {
+      const response = await fetch('/api/members', { cache: 'no-store' });
+      if (!response.ok) return;
+      const d = await response.json();
+      live = live.filter(w => !(d.gains || []).some(s =>
+        s.clan === w.clan &&
+        s.member === w.member &&
+        s.gain === w.gain &&
+        s.at >= w.at - 60000 &&
+        s.at <= w.at + 60000
+      ));
+      render();
+    } catch (e) {}
+  }
+
+  check();
+  setInterval(check, EVERY_MS);
+  setInterval(render, 1000);
+  setInterval(dedupe, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
+</script>
+
 </body>
 </html>
