@@ -436,6 +436,7 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 .cm-tools .sub{margin-left:auto}
 .cm-filter{padding:6px 11px;font-size:12px;border-radius:999px}
 .cm-filter.active{border-color:#6e5724;background:#1b160b;color:#f5c542}
+.cm-member-name{color:inherit;text-decoration:none;border-bottom:1px dotted #555}.cm-member-name:hover{color:#f5c542;text-decoration:none;border-color:#f5c542}
 .member-star{border:0;background:none;padding:0 7px 0 0;color:#8b8b98;font-size:17px;line-height:1;vertical-align:middle}
 .member-star[aria-pressed="true"]{color:#f5c542}
 .cm-watched td:nth-child(2){color:#f5d578}
@@ -536,7 +537,7 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
       prev[m.name] = m.rep;
       const isWatched = watching.has(m.name);
       return '<tr class="' + (up ? "mrow-up" : "") + (isWatched ? " cm-watched" : "") + '"><td class="k ' + (i < 3 ? "g" + (i + 1) : "") + '">' + (i + 1) + '</td>' +
-        '<td><button type="button" class="member-star" data-member-watch="' + esc(m.name) + '" aria-pressed="' + isWatched + '" aria-label="' + (isWatched ? "Remove " : "Watch ") + esc(m.name) + '">' + (isWatched ? "★" : "☆") + '</button><span class="cm-member-name">' + esc(m.name) + '</span></td>' +
+        '<td><button type="button" class="member-star" data-member-watch="' + esc(m.name) + '" aria-pressed="' + isWatched + '" aria-label="' + (isWatched ? "Remove " : "Watch ") + esc(m.name) + '">' + (isWatched ? "★" : "☆") + '</button><a class="cm-member-name" href="/member.html?name=' + encodeURIComponent(m.name) + '">' + esc(m.name) + '</a></td>' +
         '<td class="hm">' + (m.level || "-") + '</td><td class="n">' + Number(m.rep || 0).toLocaleString() + '</td>' +
         '<td class="n gn' + (g24 > 0 ? "" : " z") + '">' + formatGain(g24) + '</td>' +
         '<td class="n gn' + (g7 > 0 ? "" : " z") + '">' + formatGain(g7) + '</td>' +
