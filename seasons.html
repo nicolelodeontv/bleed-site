@@ -32,7 +32,7 @@ button:disabled{opacity:.5;cursor:wait}
 .season-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .pill{border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--mute);font-size:11px}
 .pill.active{color:var(--green);border-color:#24533d;background:#0c1812}
-.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px}
 .stat{background:#0b0b0f;border:1px solid var(--line);border-radius:13px;padding:12px 14px;min-width:0}
 .stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
 .stat b{display:block;font-size:23px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
@@ -66,7 +66,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 <main>
 <header>
   <div class="brand"><div class="mark">🏆</div><div><h1>Season Tracking</h1><div class="sub">Persistent Chaos season rankings and history</div></div></div>
-  <nav class="nav"><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/compare.html">📊 Compare Members</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+  <nav class="nav"><a href="/milestones.html">🎖️ Milestones</a><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/compare.html">📊 Compare Members</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
 </header>
 
 <section class="panel">
@@ -84,6 +84,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="stat"><span>Active members</span><b id="active-members">—</b><small>Members with season gains</small></div>
     <div class="stat"><span>Recorded gain events</span><b id="gain-events">—</b><small>Changes detected by polling</small></div>
     <div class="stat"><span>Top season gainer</span><b id="top-gainer">—</b><small id="top-gainer-gain">No gain recorded</small></div>
+    <div class="stat"><span>Milestones unlocked</span><b id="milestone-count">—</b><small id="major-milestone-count">No major unlocks</small></div>
   </div>
   <div class="notice" id="season-notice">Loading season notes…</div>
 </section>
@@ -98,18 +99,18 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 <section class="panel">
   <div class="panel-head"><div><strong>Member season performance</strong><div class="sub">Ranked by reputation gained within the selected season</div></div><span class="sub" id="leaderboard-count"></span></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>#</th><th>Member</th><th class="num">Starting rep</th><th class="num">Current rep</th><th class="num">Season gain</th><th class="num">Gain events</th><th class="num">Active days</th><th>Last gain · Manila</th></tr></thead>
-    <tbody id="leaderboard-rows"><tr><td colspan="8" class="empty">Loading season leaderboard…</td></tr></tbody>
+    <thead><tr><th>#</th><th>Member</th><th class="num">Starting rep</th><th class="num">Current rep</th><th class="num">Season gain</th><th class="num">Gain events</th><th class="num">Active days</th><th class="num">Best streak</th><th>Milestones</th><th>Last gain · Manila</th></tr></thead>
+    <tbody id="leaderboard-rows"><tr><td colspan="10" class="empty">Loading season leaderboard…</td></tr></tbody>
   </table></div>
-  <div class="note">Active days count unique Manila calendar days with at least one recorded gain. Gain events are changes detected between shared game reads, not guaranteed individual fights.</div>
+  <div class="note">Active days count unique Manila calendar days with at least one recorded gain. Best streak is consecutive calendar days with a recorded increase. Gain events are changes detected between shared game reads, not guaranteed individual fights. <a href="/milestones.html">Open live milestone progress →</a></div>
 </section>
 
 <h2>Season history</h2>
 <section class="panel">
   <div class="panel-head"><div><strong>Recorded seasons</strong><div class="sub">Select any season to view its leaderboard above</div></div><span class="sub" id="season-history-count"></span></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>Season</th><th>Started · Manila</th><th>Ended · Manila</th><th>Status</th><th class="num">Rep gained</th><th class="num">Active members</th><th>Top gainer</th></tr></thead>
-    <tbody id="season-history-rows"><tr><td colspan="7" class="empty">Loading season history…</td></tr></tbody>
+    <thead><tr><th>Season</th><th>Started · Manila</th><th>Ended · Manila</th><th>Status</th><th class="num">Rep gained</th><th class="num">Active members</th><th class="num">Milestones</th><th>Top gainer</th></tr></thead>
+    <tbody id="season-history-rows"><tr><td colspan="8" class="empty">Loading season history…</td></tr></tbody>
   </table></div>
 </section>
 
@@ -158,9 +159,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     if (!data || !data.members.length) return;
     const season = data.selected_season;
     const rows = [
-      ['Rank','Season','Member','Starting reputation','Current reputation','Season gain','Gain events','Active days','Last gain timestamp (Asia/Manila)'],
+      ['Rank','Season','Member','Starting reputation','Current reputation','Season gain','Gain events','Active days','Best streak days','Milestones earned','Last gain timestamp (Asia/Manila)'],
       ...data.members.map(row=>[
         row.rank,season.season_number,row.member,row.starting_rep,row.current_rep,row.season_gain,row.gain_events,row.active_days,
+        row.longest_streak_days || 0,
+        (row.milestones || []).map(item => item.milestone_title).join('; '),
         row.last_gain_at ? dateTime(row.last_gain_at) : ''
       ])
     ];
@@ -189,6 +192,8 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     $('gain-events').textContent = fmt(season.gain_events);
     $('top-gainer').textContent = season.top_member || '—';
     $('top-gainer-gain').textContent = season.top_member ? '+' + fmt(season.top_member_gain) + ' rep' : 'No gain recorded';
+    $('milestone-count').textContent = fmt(season.milestone_unlocks || 0);
+    $('major-milestone-count').textContent = fmt(season.major_milestone_unlocks || 0) + ' major unlocks';
     $('season-notice').textContent = seasonReason(season);
     $('selected-total').textContent = '+' + fmt(season.total_gain);
     $('selected-label').textContent = 'Season ' + season.season_number + ' · ' + season.active_members + ' active members';
@@ -204,8 +209,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       '<tr><td>' + row.rank + '</td><td><a href="/member.html?name=' + encodeURIComponent(row.member) + '">' + esc(row.member) + '</a></td>' +
       '<td class="num">' + fmt(row.starting_rep) + '</td><td class="num">' + fmt(row.current_rep) + '</td>' +
       '<td class="num gain">+' + fmt(row.season_gain) + '</td><td class="num">' + fmt(row.gain_events) + '</td>' +
-      '<td class="num">' + fmt(row.active_days) + '</td><td>' + (row.last_gain_at ? esc(dateTime(row.last_gain_at)) : '—') + '</td></tr>'
-    ).join('') : '<tr><td colspan="8" class="empty">No member baselines are available for this season yet.</td></tr>';
+      '<td class="num">' + fmt(row.active_days) + '</td><td class="num">' + fmt(row.longest_streak_days) + '</td>' +
+      '<td>' + ((row.milestones || []).length
+        ? '<div class="badges">' + row.milestones.map(item =>
+            '<a class="badge" href="/milestones.html#season-' + data.selected_season.season_number + '">🎖️ ' + esc(item.milestone_title) + '</a>'
+          ).join('') + '</div>'
+        : '—') + '</td><td>' + (row.last_gain_at ? esc(dateTime(row.last_gain_at)) : '—') + '</td></tr>'
+    ).join('') : '<tr><td colspan="10" class="empty">No member baselines are available for this season yet.</td></tr>';
   }
   function renderHistory() {
     $('season-history-count').textContent = data.seasons.length + ' recorded season' + (data.seasons.length===1?'':'s');
@@ -214,7 +224,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       '<td><button type="button" data-season="' + season.season_number + '">Season ' + season.season_number + '</button></td>' +
       '<td>' + esc(dateTime(season.started_at)) + '</td><td>' + (season.ended_at ? esc(dateTime(season.ended_at)) : '—') + '</td>' +
       '<td>' + (season.status==='active'?'Current':'Completed') + '</td><td class="num gain">+' + fmt(season.total_gain) + '</td>' +
-      '<td class="num">' + fmt(season.active_members) + '</td><td>' +
+      '<td class="num">' + fmt(season.active_members) + '</td><td class="num">' + fmt(season.milestone_unlocks || 0) + '</td><td>' +
       (season.top_member ? esc(season.top_member) + ' · +' + fmt(season.top_member_gain) : '—') + '</td></tr>'
     ).join('');
   }
@@ -242,7 +252,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     } catch(error) {
       $('status-message').textContent = error.message;
       $('status-message').classList.add('error');
-      if (!data) $('leaderboard-rows').innerHTML = '<tr><td colspan="8" class="empty error">Unable to load season history.</td></tr>';
+      if (!data) $('leaderboard-rows').innerHTML = '<tr><td colspan="10" class="empty error">Unable to load season history.</td></tr>';
     } finally { busy = false; }
   }
 
