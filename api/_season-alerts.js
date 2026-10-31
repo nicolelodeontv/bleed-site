@@ -403,3 +403,158 @@ export async function dispatchChaosMilestoneAlert() {
     };
   }
 }
+
+
+async function updatePersonalBestClaim(alert, patch) {
+  const query = new URLSearchParams({
+    id: 'eq.' + alert.id,
+    status: 'eq.sending',
+    attempt_count: 'eq.' + alert.attempt_count,
+  });
+  const response = await fetch(REST + '/chaos_personal_best_alerts?' + query.toString(), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    throw new Error('Personal best alert status update failed: HTTP ' + response.status);
+  }
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length === 1;
+}
+
+function makePersonalBestDiscordPayload(alert) {
+  const payload = alert.payload && typeof alert.payload === 'object' ? alert.payload : {};
+  const season = Number(payload.season_number || alert.season_number);
+  const day = String(payload.alert_day || '');
+  const unlocked = Array.isArray(payload.unlocked) ? payload.unlocked : [];
+  const visible = unlocked.slice(0, 16);
+  const units = {
+    season_gain: ' rep',
+    active_days: ' days',
+    longest_streak: ' days',
+    gain_events: ' recorded increases',
+    best_day_gain: ' rep in one day',
+    best_week_gain: ' rep in one week',
+  };
+  const lines = visible.map(row => {
+    const member = safeText(row.member).slice(0, 48);
+    const title = safeText(row.record_title).slice(0, 48);
+    const current = Number(row.record_value || 0).toLocaleString('en-US');
+    const previous = Number(row.previous_value || 0).toLocaleString('en-US');
+    const unit = units[row.record_key] || '';
+    return '**' + member + '** · 🏆 ' + title + ' · **' + current + unit +
+      '** (previous best ' + previous + ')';
+  });
+  if (unlocked.length > visible.length) {
+    lines.push('+' + (unlocked.length - visible.length) + ' additional personal bests · see Records');
+  }
+
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      color: 0xf5c542,
+      title: '🏆 New Chaos personal bests · Season ' + season,
+      description: (lines.join('\n') || 'A new personal record was recorded.') .slice(0, 3900),
+      footer: {
+        text: unlocked.length + ' new personal best' + (unlocked.length === 1 ? '' : 's') +
+          ' · one digest per Manila day',
+      },
+      timestamp: new Date((Number(alert.created_at) || Date.now())).toISOString(),
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'View All-Time Records',
+        url: SITE + '/records.html',
+      }, {
+        type: 2,
+        style: 5,
+        label: 'Season ' + season,
+        url: SITE + '/seasons.html?season=' + encodeURIComponent(season),
+      }],
+    }],
+    // One daily outbox row gets one stable nonce across delivery retries.
+    nonce: 'pb-' + String(alert.id).slice(-20),
+    enforce_nonce: true,
+  };
+}
+
+export async function dispatchChaosPersonalBestAlert() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const claimResponse = await fetch(REST + '/rpc/claim_chaos_personal_best_alert', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!claimResponse.ok) {
+    const detail = (await claimResponse.text()).slice(0, 350);
+    throw new Error('Personal best alert claim failed: HTTP ' + claimResponse.status +
+      (detail ? ' · ' + detail : ''));
+  }
+
+  const claimed = await claimResponse.json();
+  const alert = Array.isArray(claimed) ? claimed[0] : null;
+  if (!alert) return { status: 'idle' };
+
+  try {
+    const messageId = await deliver(makePersonalBestDiscordPayload(alert));
+    const sentAt = Date.now();
+    const marked = await updatePersonalBestClaim(alert, {
+      status: 'sent',
+      discord_message_id: messageId,
+      sent_at: sentAt,
+      lease_until: 0,
+      last_error: null,
+      updated_at: sentAt,
+    });
+    if (!marked) {
+      console.error('Personal best digest delivered but outbox status was not confirmed', alert.id);
+      return { status: 'sent_unconfirmed', alert_id: Number(alert.id) };
+    }
+    return {
+      status: 'sent',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      record_count: Array.isArray(alert.payload && alert.payload.unlocked)
+        ? alert.payload.unlocked.length : 0,
+      message_id: messageId,
+      attempt_count: Number(alert.attempt_count),
+    };
+  } catch (error) {
+    const attempt = Math.max(1, Number(alert.attempt_count) || 1);
+    const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+    const failureAt = Date.now();
+    const message = String(error && error.message ? error.message : error).slice(0, 500);
+    try {
+      await updatePersonalBestClaim(alert, {
+        status: 'failed',
+        next_attempt_at: failureAt + backoff,
+        lease_until: 0,
+        last_error: message,
+        updated_at: failureAt,
+      });
+    } catch (updateError) {
+      console.error('Could not schedule personal best retry:',
+        String(updateError.message || updateError).slice(0, 300));
+    }
+    console.error('Personal best Discord digest failed:', message);
+    return {
+      status: 'retry_scheduled',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      attempt_count: attempt,
+      retry_after_ms: backoff,
+    };
+  }
+}
