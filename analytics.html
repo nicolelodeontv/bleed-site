@@ -314,19 +314,92 @@ tbody tr:last-child td{border-bottom:0}
   }
   function exportCsv() {
     if (!current) return;
-    const lines = [['type','date','member','gain','events','rank','previous_rank','rank_change']];
-    (current.daily_totals || []).forEach(row => lines.push([
-      'daily_total',row.date,'',row.gain,row.events,'','',''
-    ]));
-    (current.heatmap.members || []).forEach(member => member.days.forEach(day => {
-      if (day.gain || day.events) lines.push(['member_day',day.date,member.member,day.gain,day.events,'','','']);
-    }));
-    (current.rank_movement.members || []).forEach(row => lines.push([
+    const lines = [[
+      'type','date','member','gain','events','rank','previous_rank','rank_change',
+      'season_gain','current_rep','active_days','status','details'
+    ]];
+    const add = (type,date,member,gain,events,rank,previousRank,rankChange,
+      seasonGain,currentRep,activeDays,status,details) => lines.push([
+      type,date,member,gain,events,rank,previousRank,rankChange,
+      seasonGain,currentRep,activeDays,status,details
+    ]);
+
+    add('report_metadata',current.today,'','','','','','','','','','',
+      'timezone=' + (current.timezone || '') + '; generated_at_ms=' + (current.generated_at || '') +
+      '; ' + (current.daily_tracking_note || ''));
+
+    (current.daily_totals || []).forEach(row => add(
+      'daily_total',row.date,'',row.gain,row.events,'','','','','',
+      row.active_members,'',row.snapshot_saved ? 'daily_rank_snapshot_saved' : 'no_rank_snapshot'
+    ));
+
+    // Export the complete ledger returned by the API, not just the top 18 rows
+    // currently rendered in the visual heatmap.
+    (current.member_daily_activity || []).forEach(row => add(
+      'member_day',row.date,row.member,row.gain,row.events,'','','','','','','',
+      'permanent season daily ledger'
+    ));
+
+    (current.member_season_stats || []).forEach(row => add(
+      'member_season_summary','',row.member,'',row.gain_events,'','','',
+      row.season_gain,row.current_rep,row.active_days,'',
+      'last_gain_day=' + (row.last_gain_day || '')
+    ));
+
+    (current.momentum && current.momentum.members || []).forEach(row => add(
+      'member_momentum','',row.member,row.last_7d_gain,'','','',row.change,
+      row.season_gain,row.current_rep,'',row.status,
+      'previous_7d_gain=' + row.previous_7d_gain
+    ));
+
+    (current.leaderboard_history || []).forEach(row => add(
+      'leaderboard_snapshot',row.date,row.member,'',row.gain_events,row.rank,'','',
+      row.season_gain,row.current_rep,row.active_days,'',
+      'captured_at_ms=' + row.captured_at
+    ));
+
+    (current.rank_movement && current.rank_movement.members || []).forEach(row => add(
       'rank_movement',current.rank_movement.current_date,row.member,'','',
       row.rank,row.previous_rank == null ? '' : row.previous_rank,
-      row.rank_change == null ? '' : row.rank_change
-    ]));
-    const csv = lines.map(row => row.map(value => '"' + String(value == null ? '' : value).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+      row.rank_change == null ? '' : row.rank_change,
+      row.season_gain,row.current_rep,'','',
+      'comparison_date=' + (current.rank_movement.comparison_date || '')
+    ));
+
+    ['current','previous'].forEach(period => {
+      const week = current.weekly && current.weekly[period];
+      if (!week) return;
+      add('weekly_summary',week.start,'',week.total_gain,week.total_events,'','','',
+        '','',week.active_members,'', 'week_end=' + week.end + '; active_days=' + week.active_days);
+
+      (week.top_gainers || []).forEach(row => add(
+        'weekly_top_gainer',week.start,row.member,row.gain,row.events,'','','',
+        '','',row.active_days,'','week_end=' + week.end
+      ));
+      (week.top_active_members || []).forEach(row => add(
+        'weekly_most_active',week.start,row.member,row.gain,row.events,'','','',
+        '','',row.active_days,'','week_end=' + week.end
+      ));
+    });
+
+    (current.weekly && current.weekly.biggest_improvements || []).forEach(row => add(
+      'weekly_improvement',current.weekly.current.start,row.member,row.current_gain,'','','',
+      row.improvement,'','','','increased',
+      'previous_week_gain=' + row.previous_gain + '; week_end=' + current.weekly.current.end
+    ));
+
+    (current.weekly && current.weekly.notable_records || []).forEach(row => add(
+      'weekly_personal_record','',row.member,row.record_value,'','','','','','','','',
+      'record_key=' + row.record_key + '; title=' + row.record_title +
+      '; achieved_at_ms=' + row.achieved_at
+    ));
+
+    const csv = lines.map(row => row.map((value,index) => {
+      let text = String(value == null ? '' : value);
+      // Neutralize spreadsheet formulas in user-controlled text fields.
+      if ([2,11,12].includes(index) && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g,'""') + '"';
+    }).join(',')).join('\r\n');
     const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
