@@ -27,6 +27,11 @@ export default async function handler(req, res) {
   if (!name || name.length > 120) {
     return res.status(400).json({ error: 'a valid member name is required' });
   }
+  const hasBefore = req.query.before !== undefined && req.query.before !== '';
+  const before = hasBefore && typeof req.query.before === 'string' ? Number(req.query.before) : null;
+  if (hasBefore && (!Number.isSafeInteger(before) || before <= 0 || before > Date.now())) {
+    return res.status(400).json({ error: 'invalid activity cursor' });
+  }
 
   try {
     const memberFilter = 'eq.' + name;
@@ -45,7 +50,7 @@ export default async function handler(req, res) {
       select: 'at,member,gain,total',
       clan_id: 'eq.3',
       member: memberFilter,
-      at: 'gte.' + (Date.now() - KEEP),
+      at: before ? 'lt.' + before : 'gte.' + (Date.now() - KEEP),
       order: 'at.desc',
       limit: '200',
     });
@@ -94,6 +99,8 @@ export default async function handler(req, res) {
       history: Array.isArray(history) ? history : [],
       events: Array.isArray(events) ? events : [],
       event_limit: 200,
+      has_more: Array.isArray(events) && events.length === 200,
+      next_before: Array.isArray(events) && events.length ? Number(events[events.length - 1].at) : null,
     });
   } catch (error) {
     return res.status(502).json({ error: error && error.message ? error.message : 'member activity unavailable' });
