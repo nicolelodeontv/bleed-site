@@ -250,8 +250,8 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   const seen = new Set();
   const shownRep = new Set();
   const liveRepAt = new Map(), serverRepAt = new Map();
-  let first = true, checking = false;
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }));
+  let first = true;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function repToast(g, source) {
     const box = document.getElementById('toasts');
     const member = String(g.member || 'Unknown');
@@ -309,30 +309,20 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
     while (box.children.length > 4) box.firstChild.remove();
     setTimeout(close, 8000);
   }
-  window.addEventListener('chaos-rep-gain', event => repToast(event.detail || {}, 'live'));
-  async function check() {
-    if (checking) return;
-    checking = true;
-    try {
-      const r = await fetch('/api/members', { cache: 'no-store' });
-      if (!r.ok) return;
-      const d = await r.json();
-      if (d.error || !Array.isArray(d.gains)) return;
-      d.gains.slice().reverse().forEach(g => {
-        const k = [g.at, g.clan, g.member, g.gain].join('|');
-        if (seen.has(k)) return;
-        seen.add(k);
-        if (seen.size > 600) seen.delete(seen.values().next().value);
-        if (!first) toast(g);
-      });
-      first = false;
-    } catch {}
-    finally { checking = false; }
+  function consumeFeed(detail) {
+    const gains = Array.isArray(detail && detail.gains) ? detail.gains : [];
+    gains.slice().reverse().forEach(g => {
+      const k = [g.at, g.clan, g.member, g.gain].join('|');
+      if (seen.has(k)) return;
+      seen.add(k);
+      if (seen.size > 600) seen.delete(seen.values().next().value);
+      if (!first) toast(g);
+    });
+    first = false;
   }
-  check();
-  setInterval(check, 10000);
-})();
-</script>
+  window.addEventListener('chaos-members', event => consumeFeed(event.detail || {}));
+  window.addEventListener('chaos-rep-gain', event => repToast(event.detail || {}, 'live'));
+})();</script>
 <style>
 .atk{border-color:var(--line);background:var(--card)}
 .atk.live{border-color:#5a2a30;background:linear-gradient(90deg,rgba(255,77,90,.08),var(--card) 70%)}
@@ -341,11 +331,10 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 </style>
 <script>
 (function () {
-  const CLAN = 'Chaos', CLAN_ID = 3;
+  const CLAN = 'Chaos';
   const EVERY_MS = 5000;
   const MAX_GAP_MS = 15000;
   const SHOW_MS = 3600e3;
-  const SRC = 'https://ninjazenshin.online/clan-ranking/members/' + CLAN_ID;
 
   const box = document.getElementById('fights');
   if (!box) return;
@@ -360,49 +349,43 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   let recorded = [];
 
   async function check() {
-    if (busy) return;
+    if (busy || document.hidden) return;
     busy = true;
     try {
-      const response = await fetch(SRC, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Members request failed: ' + response.status);
+      const response = await fetch('/api/members', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Shared members request failed: ' + response.status);
       const d = await response.json();
-      window.dispatchEvent(new CustomEvent('chaos-members', { detail: d }));
-      if (!Array.isArray(d.members)) throw new Error('Invalid members response');
-      const now = Date.now(), seen = new Set();
+      if (!Array.isArray(d.members)) throw new Error(d.sync_error || 'Shared members snapshot is not ready');
+
+      const now = Date.now();
+      const snapshotAt = Number(d.snapshot_at) || now;
+      const seen = new Set();
       const members = d.members.filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name));
+      recorded = Array.isArray(d.gains) ? d.gains.filter(g => g.clan === CLAN) : [];
+      window.dispatchEvent(new CustomEvent('chaos-members', { detail: d }));
+
       const dropped = members.filter(m => base[m.name] !== undefined && m.rep < base[m.name]).length;
       const reset = dropped > Math.max(3, members.length / 2);
-      const combined = lastOk > 0 && now - lastOk > MAX_GAP_MS;
+      const combined = lastOk > 0 && snapshotAt - lastOk > MAX_GAP_MS;
       for (const m of members) {
         if (ready && !reset && base[m.name] !== undefined && m.rep > base[m.name]) {
           const gain = m.rep - base[m.name];
-          live.unshift({ at: now, member: m.name, gain, total: m.rep, combined, live: true });
+          live.unshift({ at: snapshotAt, member: m.name, gain, total: m.rep, combined, live: true });
           window.dispatchEvent(new CustomEvent('chaos-rep-gain', {
-            detail: { clan: CLAN, member: m.name, gain, total: m.rep, at: now }
+            detail: { clan: CLAN, member: m.name, gain, total: m.rep, at: snapshotAt }
           }));
         }
         base[m.name] = m.rep;
       }
       ready = true;
-      lastOk = now;
+      lastOk = snapshotAt;
       live = live.filter(a => now - a.at < SHOW_MS).slice(0, 60);
       render();
     } catch (e) {
-      // Blocked or offline: the server-recorded list below still works.
+      // Keep the last shared snapshot visible when the API or game source is unavailable.
     } finally {
       busy = false;
     }
-  }
-
-  async function loadRecorded() {
-    try {
-      const response = await fetch('/api/members', { cache: 'no-store' });
-      if (!response.ok) return;
-      const d = await response.json();
-      if (d.error || !Array.isArray(d.gains)) return;
-      recorded = d.gains.filter(g => g.clan === CLAN);
-      render();
-    } catch (e) {}
   }
 
   function covered(r) {
@@ -430,18 +413,15 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   }
 
   check();
-  loadRecorded();
   setInterval(check, EVERY_MS);
-  setInterval(loadRecorded, 15000);
   setInterval(render, 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
-})();
-</script>
+})();</script>
 
 
 
 <style>
-.cm-wrap{max-height:420px}
+.cm-wrap{max-height:420px}\n#cm-sub.sync-stale{color:var(--accent)}
 .mrow-up td{animation:mflash 1.6s ease}
 @keyframes mflash{from{background:rgba(245,197,66,.25)}to{background:transparent}}
 .gn{color:#f5c542}
@@ -465,7 +445,11 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
     const ms = d.members
       .filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name))
       .sort((a, b) => (b.rep || 0) - (a.rep || 0));
-    sub.textContent = (d.name || "Chaos") + " · " + ms.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString();
+    const snapshotAt = Number(d.snapshot_at) || 0;
+    const ageSeconds = snapshotAt ? Math.max(0, Math.floor((Date.now() - snapshotAt) / 1000)) : null;
+    const freshness = ageSeconds === null ? " · waiting for shared sync" : " · shared read " + ageSeconds + "s ago";
+    sub.classList.toggle("sync-stale", ageSeconds === null || ageSeconds > 15 || !!d.sync_error);
+    sub.textContent = (d.name || "Chaos") + " · " + ms.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString() + freshness + (d.sync_error ? " · sync issue" : "");
     rows.innerHTML = ms.map((m, i) => {
       if (base[m.name] === undefined) base[m.name] = m.rep;
       const up = prev[m.name] !== undefined && m.rep > prev[m.name];
