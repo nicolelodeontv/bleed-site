@@ -78,7 +78,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="mark">👤</div>
     <div><h1 id="member-name">Member Profile</h1><div class="sub">Chaos member reputation and recorded activity</div></div>
   </div>
-  <nav class="nav"><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+  <nav class="nav"><a href="/milestones.html">🎖️ Milestones</a><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
 </header>
 
 <section class="profile">
@@ -115,7 +115,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="season-stat"><span>All-time recorded gain</span><b id="season-total-gain">—</b><small>Sum across tracked seasons</small></div>
     <div class="season-stat"><span>Best season rank</span><b id="season-best-rank">—</b><small id="season-best-label">No rank yet</small></div>
     <div class="season-stat"><span>Recorded gain events</span><b id="season-event-count">—</b><small id="season-active-days">— active days</small></div>
-    <div class="season-stat"><span>Awards earned</span><b id="season-award-count">—</b><small id="season-champion-count">No season titles yet</small></div>
+    <div class="season-stat"><span>Awards + milestones</span><b id="season-award-count">—</b><small id="season-champion-count">Season achievements</small></div>
   </div>
   <div class="panel-head"><div><strong>Reputation gained per season</strong><div class="sub">Only saved season gains are included</div></div><div class="sub" id="season-chart-total"></div></div>
   <div id="season-chart-holder" class="season-chart-scroll"><div class="chart-empty">Loading cross-season history…</div></div>
@@ -240,11 +240,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     $('season-event-count').textContent = fmt(seasonData.total_gain_events);
     $('season-active-days').textContent = fmt(seasonData.total_active_days) + ' summed active days';
     const allAwards = (seasonData.history || []).flatMap(row => row.awards || []);
-    $('season-award-count').textContent = fmt(allAwards.length);
+    const allMilestones = (seasonData.history || []).flatMap(row => row.milestones || []);
+    $('season-award-count').textContent = fmt(allAwards.length + allMilestones.length);
     const championCount = allAwards.filter(award => award.award_key === 'season_champion').length;
-    $('season-champion-count').textContent = championCount
-      ? fmt(championCount) + ' champion title' + (championCount === 1 ? '' : 's')
-      : 'No season titles yet';
+    $('season-champion-count').textContent = fmt(allAwards.length) + ' season awards · ' +
+      fmt(allMilestones.length) + ' milestones · ' + fmt(championCount) + ' champion titles';
     const delta = seasonData.current_vs_previous_gain;
     const deltaText = delta == null ? 'No previous tracked season to compare' :
       (delta > 0 ? '+' : delta < 0 ? '−' : '±') + fmt(Math.abs(delta)) + ' rep vs previous tracked season';
@@ -270,11 +270,15 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         '<td class="num">' + (row.tracked ? fmt(row.gain_events) : '—') + '</td>' +
         '<td class="num">' + (row.tracked ? fmt(row.active_days) : '—') + '</td>' +
         '<td class="num">' + (row.tracked ? diffText : '<span class="muted">Not tracked</span>') + '</td>' +
-        '<td>' + ((row.awards || []).length
-          ? '<div class="season-awards">' + row.awards.map(award =>
+        '<td>' + (((row.awards || []).length + (row.milestones || []).length)
+          ? '<div class="season-awards">' +
+            (row.awards || []).map(award =>
               '<a class="season-award-chip" href="/hall-of-fame.html#season-' + row.season_number + '">' +
               '🏅 ' + esc(award.award_title) + '</a>'
-            ).join('') + '</div>'
+            ).concat((row.milestones || []).map(milestone =>
+              '<a class="season-award-chip" href="/milestones.html#season-' + row.season_number + '">' +
+              '🎖️ ' + esc(milestone.milestone_title) + '</a>'
+            )).join('') + '</div>'
           : '—') + '</td>' +
         '</tr>';
     }).join('') : '<tr><td colspan="10" class="empty">No season records are available.</td></tr>';
@@ -308,7 +312,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     button.textContent = 'Preparing CSV…';
     try {
       const rows = [
-        ['Season','Status','Started (Asia/Manila)','Ended (Asia/Manila)','Rank','Ranked members','Starting reputation','Current reputation','Season gain','Gain events','Active days','Longest active streak days','Awards earned','Last gain (Asia/Manila)'],
+        ['Season','Status','Started (Asia/Manila)','Ended (Asia/Manila)','Rank','Ranked members','Starting reputation','Current reputation','Season gain','Gain events','Active days','Longest active streak days','Season awards','Season milestones','Last gain (Asia/Manila)'],
         ...seasonData.history.map(row => [
           row.season_number,row.status,seasonDate(row.started_at),row.ended_at ? seasonDate(row.ended_at) : '',
           row.rank == null ? '' : row.rank,row.ranked_members,row.starting_rep == null ? '' : row.starting_rep,
@@ -316,6 +320,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
           row.gain_events == null ? '' : row.gain_events,row.active_days == null ? '' : row.active_days,
           row.longest_streak_days == null ? '' : row.longest_streak_days,
           (row.awards || []).map(award => award.award_title).join('; '),
+          (row.milestones || []).map(milestone => milestone.milestone_title).join('; '),
           row.last_gain_at ? eventDate(row.last_gain_at) : ''
         ])
       ];
