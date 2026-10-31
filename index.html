@@ -362,13 +362,52 @@ syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterv
       const response = await fetch('/api/members', { cache: 'no-store' });
       if (!response.ok) return;
       const d = await response.json();
-      live = live.filter(w => !(d.gains || []).some(s =>
-        s.clan === w.clan &&
-        s.member === w.member &&
-        s.gain === w.gain &&
-        s.at >= w.at - 60000 &&
-        s.at <= w.at + 60000
-      ));
+      const snapshot = live.slice();
+      const matched = new Set();
+      const recorded = Array.isArray(d.gains) ? d.gains.slice().sort((a, b) => a.at - b.at) : [];
+
+      for (const s of recorded) {
+        const candidates = snapshot.filter(w =>
+          !matched.has(w) &&
+          s.clan === w.clan &&
+          s.member === w.member &&
+          Math.abs(s.at - w.at) <= 60000
+        );
+        let best = null;
+        let bestScore = Infinity;
+
+        // Prefer a single exact match.
+        for (const w of candidates) {
+          if (w.gain !== s.gain) continue;
+          const score = Math.abs(s.at - w.at);
+          if (score < bestScore) { best = [w]; bestScore = score; }
+        }
+
+        // One server poll can combine several browser-detected rep increases.
+        // Match a group of LIVE cards when their gains add up to the recorded total.
+        if (!best && candidates.length > 1) {
+          const limit = 1 << candidates.length;
+          for (let mask = 1; mask < limit; mask++) {
+            let total = 0, distance = 0, group = [];
+            for (let bit = 0; bit < candidates.length; bit++) {
+              if (mask & (1 << bit)) {
+                const w = candidates[bit];
+                total += w.gain;
+                distance += Math.abs(s.at - w.at);
+                group.push(w);
+              }
+            }
+            if (group.length > 1 && total === s.gain) {
+              const score = group.length * 1000000 + distance;
+              if (score < bestScore) { best = group; bestScore = score; }
+            }
+          }
+        }
+
+        if (best) best.forEach(w => matched.add(w));
+      }
+
+      live = live.filter(w => !matched.has(w));
       render();
     } catch (e) {}
   }
