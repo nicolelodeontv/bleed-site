@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090a0f">
+<title>Season Comparison · Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#090a0f;--panel:#12141c;--panel2:#171a24;--line:#282c39;--text:#f4f5f7;--muted:#9499a8;--gold:#f5c542;--green:#40c982;--red:#ff6572;--blue:#83aaff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1b1d2a 0,transparent 55%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:inherit}
+.shell{max-width:1250px;margin:auto;padding:24px 18px 56px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+nav a,.btn,select,input{border:1px solid var(--line);background:#11131b;color:#dce0e9;border-radius:9px;padding:8px 12px;text-decoration:none;font:inherit}
+nav a:hover,.btn:hover{border-color:#6a5a2b;color:var(--gold)}
+.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+.eyebrow{font-size:11px;letter-spacing:.16em;font-weight:800;color:var(--gold);text-transform:uppercase}
+h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.04em;margin:5px 0}
+h2{font-size:16px;margin:0 0 3px;letter-spacing:-.02em}
+h3{font-size:12px;margin:0 0 7px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.sub,.desc{color:var(--muted)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select{min-width:145px}
+.btn{cursor:pointer}.btn:disabled,select:disabled{opacity:.55;cursor:not-allowed}
+.status{border:1px solid var(--line);border-radius:10px;background:#11131b;color:var(--muted);padding:10px 12px;margin:12px 0 18px}
+.status.warn{border-color:#594a27;color:#e9d18b}.status.error{border-color:#69333d;color:#ff9da6}
+.panel,.stat,.season-card{background:linear-gradient(145deg,rgba(255,255,255,.025),transparent 52%),var(--panel);border:1px solid var(--line);border-radius:14px}
+.panel{padding:17px;min-width:0;margin-bottom:12px}
+.desc{font-size:12px;margin:0 0 13px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.stat{padding:14px 15px}.stat .label{color:var(--muted);font-size:12px}.stat .value{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.stat .hint{font-size:11px;color:var(--muted);margin-top:2px}
+.season-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.season-card{padding:15px}.season-card .season-title{font-size:18px;font-weight:800}.season-card .season-gain{font-size:28px;font-weight:900;color:var(--gold);margin:5px 0}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}.metric span{display:block;color:var(--muted);font-size:10px}.metric b{display:block;font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}
+.delta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}.delta{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}.delta .label{font-size:11px;color:var(--muted)}.delta strong{display:block;font-size:21px;margin-top:3px;font-variant-numeric:tabular-nums}.positive{color:var(--green)}.negative{color:var(--red)}.neutral{color:var(--muted)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}th{text-align:left;color:var(--muted);font-weight:600;padding:9px 8px;border-bottom:1px solid var(--line)}td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.055)}tbody tr:last-child td{border-bottom:0}.num{text-align:right;font-variant-numeric:tabular-nums}.gain{color:var(--gold);font-weight:700}.up{color:var(--green);font-weight:700}.down{color:var(--red);font-weight:700}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:10px;color:var(--muted)}
+.note{font-size:11px;color:var(--muted);line-height:1.5;margin-top:10px}.empty{color:var(--muted);text-align:center;padding:24px 8px;font-size:12px}
+.search{width:min(100%,270px)}.section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.actions{display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px}
+#single-season[hidden],#compare-results[hidden]{display:none}
+@media(max-width:850px){.stats,.delta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.shell{padding:16px 12px 42px}.panel{padding:13px}.season-grid,.two-col{grid-template-columns:1fr}.stats{gap:8px}.stat .value{font-size:21px}.controls{width:100%}.controls select{flex:1}.delta-grid{gap:8px}.delta strong{font-size:18px}.season-card .season-gain{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <a href="/">← Bleed Watch</a>
+    <a href="/seasons.html">🏆 Seasons</a>
+    <a href="/analytics.html">📈 Season Analytics</a>
+    <a href="/compare.html">👥 Compare Members</a>
+    <a href="/records.html">🏅 Personal Records</a>
+  </nav>
+  <header class="head">
+    <div><div class="eyebrow">Cross-season performance</div><h1>Season Comparison</h1><div class="sub">Compare reputation growth, activity, consistency and member progress across seasons.</div></div>
+    <div class="controls">
+      <label class="sub" for="season-a">From</label><select id="season-a" aria-label="Earlier season"></select>
+      <label class="sub" for="season-b">To</label><select id="season-b" aria-label="Later season"></select>
+      <button class="btn" id="compare" type="button">Compare</button>
+      <button class="btn" id="refresh" type="button">↻</button>
+    </div>
+  </header>
+  <div id="status" class="status">Loading season history…</div>
+
+  <section id="single-season" class="panel" hidden>
+    <h2>Current season baseline</h2>
+    <p class="desc" id="single-note">A side-by-side comparison will appear after another season is recorded.</p>
+    <div class="stats">
+      <div class="stat"><div class="label">Season reputation gained</div><div class="value" id="single-gain">—</div><div class="hint">Persistent member season totals</div></div>
+      <div class="stat"><div class="label">Active members</div><div class="value" id="single-active">—</div><div class="hint">Members with positive season gain</div></div>
+      <div class="stat"><div class="label">Recorded increases</div><div class="value" id="single-events">—</div><div class="hint">Positive reputation changes</div></div>
+      <div class="stat"><div class="label">Season duration</div><div class="value" id="single-duration">—</div><div class="hint" id="single-daily-average">Average daily gain</div></div>
+    </div>
+    <div class="note" id="single-coverage"></div>
+    <h3 style="margin-top:18px">Current season members</h3>
+    <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Member</th><th class="num">Season gain</th><th class="num">Increases</th><th class="num">Active days</th><th class="num">Best streak</th></tr></thead><tbody id="single-members"></tbody></table></div>
+  </section>
+
+  <div id="compare-results" hidden>
+    <div class="delta-grid">
+      <div class="delta"><div class="label">Total reputation change</div><strong id="delta-gain">—</strong></div>
+      <div class="delta"><div class="label">Active member change</div><strong id="delta-active">—</strong></div>
+      <div class="delta"><div class="label">Recorded increases change</div><strong id="delta-events">—</strong></div>
+      <div class="delta"><div class="label">Average rep/day change</div><strong id="delta-daily">—</strong></div>
+    </div>
+    <div class="season-grid">
+      <section class="season-card" id="card-a"></section>
+      <section class="season-card" id="card-b"></section>
+    </div>
+    <div class="two-col">
+      <section class="panel"><h2>Top gainers</h2><p class="desc">Season totals ranked by reputation gained.</p><div id="top-a"></div></section>
+      <section class="panel"><h2>Top gainers</h2><p class="desc">Season totals ranked by reputation gained.</p><div id="top-b"></div></section>
+    </div>
+    <section class="panel">
+      <div class="section-head"><div><h2>Member-by-member comparison</h2><p class="desc" style="margin:3px 0 0">A dash means the member has no recorded row in that season; missing data is not treated as zero.</p></div><input id="member-search" class="search" type="search" placeholder="Filter members…" aria-label="Filter members"></div>
+      <div class="table-wrap"><table><thead><tr><th>Member</th><th class="num" id="a-gain-head">Season A gain</th><th class="num" id="b-gain-head">Season B gain</th><th class="num">Gain difference</th><th class="num">A active days</th><th class="num">B active days</th><th class="num">A increases</th><th class="num">B increases</th><th>Status</th></tr></thead><tbody id="member-rows"></tbody></table></div>
+      <div class="note" id="member-note"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Recorded season coverage</h2><p class="desc">Season totals and daily-history coverage are tracked separately.</p>
+    <div class="table-wrap"><table><thead><tr><th>Season</th><th>Status</th><th class="num">Total gain</th><th class="num">Active members</th><th class="num">Duration</th><th class="num">Daily ledger days</th><th class="num">Rank snapshot days</th><th>Top gainer</th></tr></thead><tbody id="season-history"></tbody></table></div>
+    <div class="note">Season totals come from persistent member statistics. Daily ledger coverage starts when durable daily tracking was enabled; earlier daily history is not backfilled from season totals. Average reputation per day is total season gain divided by elapsed calendar days, not a claim that every day has a complete daily record.</div>
+  </section>
+  <div class="actions"><button class="btn" id="export" type="button">↓ Export comparison CSV</button></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const number = value => Number(value || 0).toLocaleString();
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let data = null, loading = false, selectedA = '', selectedB = '';
+
+  function setStatus(message, type) {
+    $('status').textContent = message;
+    $('status').className = 'status' + (type ? ' ' + type : '');
+  }
+  function signed(value, suffix) {
+    const n = Number(value || 0);
+    return (n > 0 ? '+' : n < 0 ? '−' : '') + number(Math.abs(n)) + (suffix || '');
+  }
+  function deltaClass(value) {
+    return Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : 'neutral';
+  }
+  function duration(days) {
+    if (days == null) return '—';
+    return number(days) + ' day' + (Number(days) === 1 ? '' : 's');
+  }
+  function date(value) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('en-PH', {timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(Number(value)));
+  }
+  function renderSelects() {
+    const options = data.seasons.map(season =>
+      '<option value="' + season.season_number + '">Season ' + season.season_number +
+      (season.status === 'active' ? ' · Active' : '') + '</option>'
+    ).join('');
+    $('season-a').innerHTML = '<option value="">Choose earlier season</option>' + options;
+    $('season-b').innerHTML = '<option value="">Choose later season</option>' + options;
+    $('season-a').value = selectedA || '';
+    $('season-b').value = selectedB || '';
+    $('season-a').disabled = data.seasons.length < 2;
+    $('season-b').disabled = data.seasons.length < 2;
+    $('compare').disabled = data.seasons.length < 2 || !selectedA || !selectedB;
+  }
+  function renderHistory() {
+    $('season-history').innerHTML = data.seasons.map(season =>
+      '<tr><td>Season ' + season.season_number + '</td><td>' + esc(season.status) + '</td>' +
+      '<td class="num gain">+' + number(season.total_gain) + '</td><td class="num">' + number(season.active_members) + '</td>' +
+      '<td class="num">' + duration(season.elapsed_days) + '</td><td class="num">' + number(season.daily_coverage_days) + '</td>' +
+      '<td class="num">' + number(season.rank_snapshot_days) + '</td><td>' +
+      (season.top_member ? esc(season.top_member) + ' · +' + number(season.top_member_gain) : '—') + '</td></tr>'
+    ).join('');
+  }
+  function renderTop(target, summary) {
+    const rows = summary.top_gainers || [];
+    $(target).innerHTML = rows.length
+      ? '<div class="table-wrap"><table><thead><tr><th>#</th><th>Member</th><th class="num">Gain</th><th class="num">Active days</th></tr></thead><tbody>' +
+        rows.map(row => '<tr><td>' + row.rank + '</td><td>' + esc(row.member) + '</td><td class="num gain">+' +
+          number(row.season_gain) + '</td><td class="num">' + number(row.active_days) + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : '<div class="empty">No positive season gains recorded.</div>';
+  }
+  function renderSeasonCard(target, summary, label) {
+    $(target).innerHTML =
+      '<div class="season-title">' + label + ' · Season ' + summary.season_number + '</div>' +
+      '<div class="sub">' + date(summary.started_at) + ' → ' + (summary.ended_at ? date(summary.ended_at) : 'In progress') + '</div>' +
+      '<div class="season-gain">+' + number(summary.total_gain) + ' rep</div>' +
+      '<div class="metrics">' +
+      '<div class="metric"><span>Active members</span><b>' + number(summary.active_members) + '</b></div>' +
+      '<div class="metric"><span>Recorded increases</span><b>' + number(summary.gain_events) + '</b></div>' +
+      '<div class="metric"><span>Duration</span><b>' + duration(summary.elapsed_days) + '</b></div>' +
+      '<div class="metric"><span>Average rep / day</span><b>' + (summary.average_gain_per_calendar_day == null ? '—' : number(Math.round(summary.average_gain_per_calendar_day))) + '</b></div>' +
+      '<div class="metric"><span>Daily ledger days</span><b>' + number(summary.daily_coverage_days) + '</b></div>' +
+      '<div class="metric"><span>Rank snapshot days</span><b>' + number(summary.rank_snapshot_days) + '</b></div></div>' +
+      '<div class="note">Top gainer: ' + (summary.top_member ? esc(summary.top_member) + ' · +' + number(summary.top_member_gain) + ' rep' : 'No recorded gains') + '</div>';
+  }
+  function renderMemberRows() {
+    const a = Number(selectedA), b = Number(selectedB);
+    const rows = (data.member_comparisons || []).filter(row =>
+      row.member.toLowerCase().includes(($('member-search').value || '').trim().toLowerCase())
+    );
+    $('member-rows').innerHTML = rows.length ? rows.map(row => {
+      const x = row.season_a, y = row.season_b;
+      const change = row.gain_change;
+      const cls = change == null ? 'neutral' : deltaClass(change);
+      return '<tr><td>' + esc(row.member) + '</td>' +
+        '<td class="num">' + (x ? '+' + number(x.season_gain) : '—') + '</td>' +
+        '<td class="num">' + (y ? '+' + number(y.season_gain) : '—') + '</td>' +
+        '<td class="num ' + cls + '">' + (change == null ? '—' : signed(change)) + '</td>' +
+        '<td class="num">' + (x ? number(x.active_days) : '—') + '</td>' +
+        '<td class="num">' + (y ? number(y.active_days) : '—') + '</td>' +
+        '<td class="num">' + (x ? number(x.gain_events) : '—') + '</td>' +
+        '<td class="num">' + (y ? number(y.gain_events) : '—') + '</td>' +
+        '<td><span class="pill">' + esc(row.status) + '</span></td></tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">No matching member records.</td></tr>';
+    $('member-note').textContent = number(rows.length) + ' of ' + number(data.member_comparisons.length) +
+      ' members · Difference is Season ' + b + ' minus Season ' + a + '.';
+    $('a-gain-head').textContent = 'S' + a + ' gain';
+    $('b-gain-head').textContent = 'S' + b + ' gain';
+  }
+  function renderComparison() {
+    const a = data.season_a, b = data.season_b;
+    $('single-season').hidden = true;
+    $('compare-results').hidden = false;
+    const values = [
+      ['delta-gain', b.total_gain - a.total_gain, ' rep'],
+      ['delta-active', b.active_members - a.active_members, ''],
+      ['delta-events', b.gain_events - a.gain_events, ''],
+      ['delta-daily', (b.average_gain_per_calendar_day || 0) - (a.average_gain_per_calendar_day || 0), ' rep/day'],
+    ];
+    for (const [id, value, suffix] of values) {
+      $(id).textContent = signed(value, suffix);
+      $(id).className = deltaClass(value);
+    }
+    renderSeasonCard('card-a', a, 'Earlier');
+    renderSeasonCard('card-b', b, 'Later');
+    renderTop('top-a', a);
+    renderTop('top-b', b);
+    renderMemberRows();
+    setStatus('Comparing Season ' + a.season_number + ' with Season ' + b.season_number +
+      ' · ' + number(data.member_comparisons.length) + ' members in either season.');
+  }
+  function renderSingleSeason() {
+    const s = data.latest_season;
+    $('compare-results').hidden = true;
+    $('single-season').hidden = false;
+    $('single-note').textContent = 'Only Season ' + s.season_number +
+      ' is currently recorded in this project. A trustworthy cross-season comparison will unlock automatically after another season is saved.';
+    $('single-gain').textContent = '+' + number(s.total_gain);
+    $('single-active').textContent = number(s.active_members);
+    $('single-events').textContent = number(s.gain_events);
+    $('single-duration').textContent = duration(s.elapsed_days);
+    $('single-daily-average').textContent = s.average_gain_per_calendar_day == null
+      ? 'Average daily gain unavailable' : 'About ' + number(Math.round(s.average_gain_per_calendar_day)) + ' rep per calendar day';
+    $('single-coverage').textContent = 'Daily ledger: ' + number(s.daily_coverage_days) + ' tracked days' +
+      (s.daily_coverage_start ? ' (' + s.daily_coverage_start + ' to ' + s.daily_coverage_end + ')' : '') +
+      '. Rank snapshots: ' + number(s.rank_snapshot_days) + ' tracked days. The daily ledger is not backfilled from season totals.';
+    $('single-members').innerHTML = (data.latest_members || []).length
+      ? data.latest_members.slice(0,100).map(row => '<tr><td>' + row.rank + '</td><td>' + esc(row.member) +
+        '</td><td class="num gain">+' + number(row.season_gain) + '</td><td class="num">' + number(row.gain_events) +
+        '</td><td class="num">' + number(row.active_days) + '</td><td class="num">' + number(row.longest_streak_days) + '</td></tr>').join('')
+      : '<tr><td colspan="6" class="empty">No season member rows yet.</td></tr>';
+    setStatus('Season ' + s.season_number + ' baseline loaded · Waiting for a second recorded season.', 'warn');
+  }
+  function render() {
+    renderSelects();
+    renderHistory();
+    if (data.comparison_available) renderComparison();
+    else renderSingleSeason();
+    document.title = data.comparison_available
+      ? 'Season ' + data.season_a.season_number + ' vs ' + data.season_b.season_number + ' · Bleed Watch'
+      : 'Season Comparison · Bleed Watch';
+  }
+  async function load(a, b) {
+    if (loading) return;
+    loading = true;
+    $('compare').disabled = true;
+    $('refresh').disabled = true;
+    setStatus('Loading season comparison…');
+    try {
+      const params = new URLSearchParams();
+      if (a && b) { params.set('season_a', a); params.set('season_b', b); }
+      const response = await fetch('/api/seasons?view=comparison' + (params.toString() ? '&' + params.toString() : ''), {cache:'no-store'});
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Season comparison request failed (' + response.status + ')');
+      data = body;
+      selectedA = body.selected_season_a == null ? '' : String(body.selected_season_a);
+      selectedB = body.selected_season_b == null ? '' : String(body.selected_season_b);
+      render();
+    } catch (error) {
+      setStatus(error.message || 'Unable to load season comparison.', 'error');
+    } finally {
+      loading = false;
+      renderSelects();
+      $('refresh').disabled = false;
+    }
+  }
+  function exportCsv() {
+    if (!data) return;
+    const rows = [['Season A','Season B','Member','A gain','B gain','Gain difference','A active days','B active days','A increases','B increases','Status']];
+    if (data.comparison_available) {
+      data.member_comparisons.forEach(row => rows.push([
+        data.season_a.season_number,data.season_b.season_number,row.member,
+        row.season_a ? row.season_a.season_gain : '',row.season_b ? row.season_b.season_gain : '',
+        row.gain_change == null ? '' : row.gain_change,
+        row.season_a ? row.season_a.active_days : '',row.season_b ? row.season_b.active_days : '',
+        row.season_a ? row.season_a.gain_events : '',row.season_b ? row.season_b.gain_events : '',
+        row.status
+      ]));
+    } else {
+      (data.latest_members || []).forEach(row => rows.push([
+        '',data.latest_season.season_number,row.member,'',row.season_gain,'',
+        '',row.active_days,'',row.gain_events,'latest season only'
+      ]));
+    }
+    const csv = rows.map(row => row.map((value,index) => {
+      let text = String(value == null ? '' : value);
+      if ([2,10].includes(index) && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g,'""') + '"';
+    }).join(',')).join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = data.comparison_available
+      ? 'chaos-season-' + data.season_a.season_number + '-vs-' + data.season_b.season_number + '.csv'
+      : 'chaos-season-' + data.latest_season.season_number + '-baseline.csv';
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  $('season-a').addEventListener('change', event => { selectedA = event.target.value; renderSelects(); });
+  $('season-b').addEventListener('change', event => { selectedB = event.target.value; renderSelects(); });
+  $('compare').addEventListener('click', () => {
+    if (!selectedA || !selectedB || selectedA === selectedB) {
+      setStatus('Choose two different seasons to compare.', 'warn');
+      return;
+    }
+    load(selectedA, selectedB);
+  });
+  $('refresh').addEventListener('click', () => load(selectedA && selectedB ? selectedA : '', selectedA && selectedB ? selectedB : ''));
+  $('member-search').addEventListener('input', () => { if (data && data.comparison_available) renderMemberRows(); });
+  $('export').addEventListener('click', exportCsv);
+  load('', '');
+})();
+</script>
+</body>
+</html>
