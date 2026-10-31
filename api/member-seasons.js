@@ -69,10 +69,12 @@ export default async function handler(req, res) {
       const number = Number(season.season_number);
       const own = ownRows.get(number) || null;
       const cohort = cohorts.get(number) || [];
+      const orderedCohort = cohort.slice().sort((a,b) =>
+        Number(b.season_gain || 0) - Number(a.season_gain || 0) ||
+        String(a.member).localeCompare(String(b.member))
+      );
       const gain = own ? Number(own.season_gain || 0) : null;
-      const rank = own
-        ? 1 + cohort.filter(row => Number(row.season_gain || 0) > gain).length
-        : null;
+      const rank = own ? orderedCohort.findIndex(row => row.member === name) + 1 : null;
       return {
         season_number: number,
         started_at: Number(season.started_at) || 0,
