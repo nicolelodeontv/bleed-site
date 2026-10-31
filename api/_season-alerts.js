@@ -259,3 +259,147 @@ export async function dispatchSeasonRolloverAlert() {
     };
   }
 }
+
+
+async function updateMilestoneClaim(alert, patch) {
+  const query = new URLSearchParams({
+    id: 'eq.' + alert.id,
+    status: 'eq.sending',
+    attempt_count: 'eq.' + alert.attempt_count,
+  });
+  const response = await fetch(REST + '/chaos_milestone_alerts?' + query.toString(), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    throw new Error('Milestone alert status update failed: HTTP ' + response.status);
+  }
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length === 1;
+}
+
+function makeMilestoneDiscordPayload(alert) {
+  const payload = alert.payload && typeof alert.payload === 'object' ? alert.payload : {};
+  const season = Number(payload.season_number || alert.season_number);
+  const unlocked = Array.isArray(payload.unlocked) ? payload.unlocked : [];
+  const visible = unlocked.slice(0, 18);
+  const lines = visible.map(row => {
+    const member = safeText(row.member).slice(0, 50);
+    const title = safeText(row.milestone_title).slice(0, 60);
+    const value = Number(row.milestone_value || 0).toLocaleString('en-US');
+    const unit = row.milestone_key === 'season_gain' ? ' rep'
+      : row.milestone_key === 'active_days' ? ' active days'
+        : ' consecutive days';
+    return '**' + member + '** — 🏅 ' + title + ' · **' + value + unit + '**';
+  });
+  if (unlocked.length > visible.length) {
+    lines.push('+' + (unlocked.length - visible.length) + ' additional unlocks · see the live achievements page');
+  }
+
+  const description = lines.length
+    ? lines.join('\n')
+    : 'A major season milestone was unlocked. Open the live achievements page for details.';
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      color: 0xf5c542,
+      title: '🏅 Season ' + season + ' milestone unlocks!',
+      description: description.slice(0, 3900),
+      footer: {
+        text: unlocked.length + ' major milestone unlock' + (unlocked.length === 1 ? '' : 's') +
+          ' · Bleed Watch · Asia/Manila',
+      },
+      timestamp: new Date(Number(payload.poll_at || alert.created_at || Date.now())).toISOString(),
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'View Live Achievements',
+        url: SITE + '/milestones.html',
+      }],
+    }],
+    // A claimed outbox row has a stable ID; retries reuse the same Discord nonce.
+    nonce: 'cm-' + String(alert.id).slice(-20),
+    enforce_nonce: true,
+  };
+}
+
+export async function dispatchChaosMilestoneAlert() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const claimResponse = await fetch(REST + '/rpc/claim_chaos_milestone_alert', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!claimResponse.ok) {
+    const detail = (await claimResponse.text()).slice(0, 350);
+    throw new Error('Milestone alert claim failed: HTTP ' + claimResponse.status +
+      (detail ? ' · ' + detail : ''));
+  }
+
+  const claimed = await claimResponse.json();
+  const alert = Array.isArray(claimed) ? claimed[0] : null;
+  if (!alert) return { status: 'idle' };
+
+  try {
+    const messageId = await deliver(makeMilestoneDiscordPayload(alert));
+    const sentAt = Date.now();
+    const marked = await updateMilestoneClaim(alert, {
+      status: 'sent',
+      discord_message_id: messageId,
+      sent_at: sentAt,
+      lease_until: 0,
+      last_error: null,
+      updated_at: sentAt,
+    });
+    if (!marked) {
+      console.error('Milestone alert delivered but outbox status was not confirmed', alert.id);
+      return { status: 'sent_unconfirmed', alert_id: Number(alert.id) };
+    }
+    return {
+      status: 'sent',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      milestones: Array.isArray(alert.payload && alert.payload.unlocked)
+        ? alert.payload.unlocked.length : 0,
+      message_id: messageId,
+      attempt_count: Number(alert.attempt_count),
+    };
+  } catch (error) {
+    const attempt = Math.max(1, Number(alert.attempt_count) || 1);
+    const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+    const failureAt = Date.now();
+    const message = String(error && error.message ? error.message : error).slice(0, 500);
+    try {
+      await updateMilestoneClaim(alert, {
+        status: 'failed',
+        next_attempt_at: failureAt + backoff,
+        lease_until: 0,
+        last_error: message,
+        updated_at: failureAt,
+      });
+    } catch (updateError) {
+      console.error('Could not schedule milestone alert retry:',
+        String(updateError.message || updateError).slice(0, 300));
+    }
+    console.error('Milestone Discord alert failed:', message);
+    return {
+      status: 'retry_scheduled',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      attempt_count: attempt,
+      retry_after_ms: backoff,
+    };
+  }
+}
