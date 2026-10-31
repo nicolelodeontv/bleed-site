@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hall of Fame · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--gold:#f5c542;--green:#3ecf8e}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.10),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1160px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a2110,#100d07);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:13px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+.stat{background:#0b0b0f;border:1px solid var(--line);border-radius:13px;padding:13px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums;margin-top:3px}
+.stat small{font-size:11px;color:var(--mute)}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:28px 0 10px;font-weight:700}
+.panel h2{margin:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.leaderboard{display:grid;gap:8px}
+.leader-row{display:grid;grid-template-columns:42px minmax(0,1fr) 95px 95px;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#0b0b0f}
+.rank{font-size:15px;color:var(--gold);font-weight:800;text-align:center}
+.member{font-weight:700;overflow-wrap:anywhere}
+.member-meta{font-size:11px;color:var(--mute)}
+.metric{text-align:right;font-variant-numeric:tabular-nums}
+.metric b{display:block;font-size:17px}
+.metric small{display:block;color:var(--mute);font-size:10px}
+.season-block{margin-bottom:13px}
+.season-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.season-title{font-weight:700}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--mute);font-size:11px}
+.pill.current{color:var(--green);border-color:#24533d;background:#0c1812}
+.award-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.award-card{border:1px solid #3d331d;background:#131108;border-radius:13px;padding:13px 14px;min-width:0}
+.award-title{display:flex;align-items:center;gap:9px;font-weight:750}
+.award-icon{font-size:20px}
+.award-value{font-size:19px;font-weight:800;color:var(--gold);margin-top:9px;font-variant-numeric:tabular-nums}
+.award-winners{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.winner{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:5px 9px;font-size:12px;background:#0b0b0f}
+.award-note{font-size:11px;color:var(--mute);margin-top:8px}
+.empty{padding:26px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
+.status{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}
+.error{color:#ff7b84}
+.note{font-size:12px;color:var(--mute);margin-top:11px}
+@media(max-width:760px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){main{padding:18px 12px 48px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.award-grid{grid-template-columns:1fr}.leader-row{grid-template-columns:34px minmax(0,1fr) 75px 75px;padding:9px 8px}.metric b{font-size:14px}.panel{padding:12px}h1{font-size:20px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">🏅</div><div><h1>Hall of Fame</h1><div class="sub">Permanent Chaos season achievements</div></div></div>
+  <nav class="nav"><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+</header>
+
+<section class="panel">
+  <div class="panel-head"><div><strong>All-time achievements</strong><div class="sub">Awards are saved when a season is completed</div></div><span class="sub" id="updated">Loading…</span></div>
+  <div class="summary">
+    <div class="stat"><span>Permanent awards</span><b id="total-awards">—</b><small>Across completed tracked seasons</small></div>
+    <div class="stat"><span>Unique award winners</span><b id="total-winners">—</b><small>Members with at least one award</small></div>
+    <div class="stat"><span>Recorded seasons</span><b id="total-seasons">—</b><small>Current and completed</small></div>
+  </div>
+</section>
+
+<h2>All-time award leaders</h2>
+<section class="panel">
+  <div class="panel-head"><div><strong>Most decorated members</strong><div class="sub">Members are ranked by total awards, then champion titles</div></div><span class="sub" id="leader-count"></span></div>
+  <div class="leaderboard" id="leaders"><div class="empty">Loading Hall of Fame…</div></div>
+</section>
+
+<h2>Season award archive</h2>
+<div id="season-awards"><div class="empty">Loading completed season awards…</div></div>
+
+<h2>Award definitions</h2>
+<section class="panel">
+  <div class="award-grid">
+    <div class="award-card"><div class="award-title"><span class="award-icon">👑</span> Season Champion</div><div class="award-note">Highest total reputation gained during the season.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">⚔️</span> Most Active</div><div class="award-note">Most unique Manila calendar days with a recorded reputation increase.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">🔥</span> Consistency Award</div><div class="award-note">Longest consecutive streak of calendar days with a recorded increase. Streak tracking starts with this feature; earlier streaks are not reconstructed.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">📈</span> Most Recorded Increases</div><div class="award-note">Highest number of positive changes detected between shared game reads. These are recorded increases, not guaranteed individual fights.</div></div>
+  </div>
+  <div class="note">All tied winners receive the award. Members with no positive recorded metric do not receive an award for that category. Award records are permanent once a season closes.</div>
+</section>
+
+<div class="status"><span id="status" class="sub">Loading Hall of Fame…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const fmt = value => Number(value || 0).toLocaleString();
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const icon = key => ({
+    season_champion:'👑',
+    most_active:'⚔️',
+    consistency:'🔥',
+    most_recorded_increases:'📈'
+  }[key] || '🏅');
+  const unit = award => {
+    if (award.award_key === 'most_active' || award.award_key === 'consistency') return ' days';
+    if (award.award_key === 'most_recorded_increases') return ' recorded increases';
+    return ' rep';
+  };
+  function date(value) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(Number(value)));
+  }
+  function renderLeaders() {
+    $('leader-count').textContent = data.leaders.length + ' decorated members';
+    $('leaders').innerHTML = data.leaders.length ? data.leaders.map((row,index)=>
+      '<div class="leader-row">' +
+        '<div class="rank">#' + (index+1) + '</div>' +
+        '<div><a class="member" href="/member.html?name=' + encodeURIComponent(row.member) + '">' + esc(row.member) + '</a>' +
+          '<div class="member-meta">' + fmt(row.seasons_awarded) + ' seasons · ' + fmt(row.champion_count) + ' champion title' + (row.champion_count===1?'':'s') + '</div></div>' +
+        '<div class="metric"><b>' + fmt(row.award_count) + '</b><small>awards</small></div>' +
+        '<div class="metric"><b>' + fmt(row.champion_count) + '</b><small>champions</small></div>' +
+      '</div>'
+    ).join('') : '<div class="empty">No awards have been recorded yet. Awards appear here after a season closes.</div>';
+  }
+  function renderSeasons() {
+    const completed = data.seasons.filter(season => season.status === 'completed');
+    $('season-awards').innerHTML = completed.length ? completed.map(season => {
+      const rows = season.awards || [];
+      const awardCards = rows.length ? rows.map(award =>
+        '<article class="award-card">' +
+          '<div class="award-title"><span class="award-icon">' + icon(award.award_key) + '</span>' + esc(award.award_title) + '</div>' +
+          '<div class="award-value">' + fmt(award.winning_value) + esc(unit(award)) + '</div>' +
+          '<div class="award-winners">' + award.winners.map(winner =>
+            '<a class="winner" href="/member.html?name=' + encodeURIComponent(winner.member) + '">' + esc(winner.member) + '</a>'
+          ).join('') + '</div>' +
+          '<div class="award-note">' + fmt(award.winner_count) + ' winner' + (award.winner_count===1?'':'s') +
+            ' · ' + fmt(award.eligible_count) + ' eligible members</div>' +
+        '</article>'
+      ).join('') : '<div class="empty">No positive award metrics were recorded for this season.</div>';
+      return '<section class="panel season-block">' +
+        '<div class="season-head"><div><div class="season-title">Season ' + fmt(season.season_number) + '</div>' +
+        '<div class="sub">' + esc(date(season.started_at)) + ' – ' + esc(date(season.ended_at)) + '</div></div>' +
+        '<span class="pill">Completed</span></div>' +
+        '<div class="award-grid">' + awardCards + '</div>' +
+        '<div class="note"><a href="/seasons.html?season=' + season.season_number + '">View Season ' + season.season_number + ' leaderboard →</a></div>' +
+      '</section>';
+    }).join('') : '<div class="empty">There are no completed tracked seasons yet. The first awards will be saved when the current season rolls over.</div>';
+  }
+  async function load() {
+    try {
+      const response = await fetch('/api/hall-of-fame',{cache:'no-store'});
+      const next = await response.json();
+      if (!response.ok) throw new Error(next.error || 'Hall of Fame API returned HTTP ' + response.status);
+      if (!Array.isArray(next.leaders) || !Array.isArray(next.seasons)) throw new Error('Hall of Fame response is incomplete.');
+      data = next;
+      $('total-awards').textContent = fmt(data.total_awards);
+      $('total-winners').textContent = fmt(data.total_winners);
+      $('total-seasons').textContent = fmt(data.season_count);
+      $('updated').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+      renderLeaders();
+      renderSeasons();
+      $('status').textContent = 'Hall of Fame updated';
+      $('status').classList.remove('error');
+    } catch(error) {
+      $('status').textContent = error.message;
+      $('status').classList.add('error');
+      if (!data) $('season-awards').innerHTML = '<div class="empty error">Unable to load award history.</div>';
+    }
+  }
+  let data = null;
+  load();
+  setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
