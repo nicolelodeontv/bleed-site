@@ -140,7 +140,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
             ' · ' + fmt(award.eligible_count) + ' eligible members</div>' +
         '</article>'
       ).join('') : '<div class="empty">No positive award metrics were recorded for this season.</div>';
-      return '<section class="panel season-block">' +
+      return '<section class="panel season-block" id="season-' + season.season_number + '">' +
         '<div class="season-head"><div><div class="season-title">Season ' + fmt(season.season_number) + '</div>' +
         '<div class="sub">' + esc(date(season.started_at)) + ' – ' + esc(date(season.ended_at)) + '</div></div>' +
         '<span class="pill">Completed</span></div>' +
