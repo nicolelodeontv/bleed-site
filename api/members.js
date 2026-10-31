@@ -1,6 +1,6 @@
 // api/members.js
-// With ?key=CRON_SECRET  -> polls the tracked clans and records rep gains (call from cron-job.org every 1 min)
-// Without a key          -> returns the recent gains for the fights page
+// With ?key=CRON_SECRET  -> backup cron poll, sharing the same 20s database cooldown
+// Without a key          -> claims a stale-safe on-demand poll, then returns recent gains
 
 const { SUPABASE_URL, CRON_SECRET, TRACK_CLANS } = process.env;
 const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,24 +55,49 @@ async function pollClan(id, now) {
   return { id, clan: d.name, gains: gains.length, reset };
 }
 
+const POLL_COOLDOWN = 20_000;
+
+async function claimPoll(now) {
+  const claim = await fetch(REST + '/bleed_state?id=eq.1&members_checked_at=lt.' + (now - POLL_COOLDOWN), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify({ members_checked_at: now }),
+  });
+  if (!claim.ok) throw new Error('Supabase poll claim failed: ' + claim.status);
+  const rows = await claim.json();
+  return Array.isArray(rows) && rows.length === 1;
+}
+
+async function runPoll(now) {
+  const out = await Promise.all(IDS.map(async id => {
+    try { return await pollClan(id, now); }
+    catch (e) { return { id, error: e.message }; }
+  }));
+  const cleanup = await fetch(REST + '/rep_gains?at=lt.' + (now - KEEP), { method: 'DELETE', headers: H });
+  if (!cleanup.ok) throw new Error('Supabase cleanup failed: ' + cleanup.status);
+  return out;
+}
+
 export default async function handler(req, res) {
   try {
     if (req.query.key) {
       if (req.query.key !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
       const now = Date.now();
-      const out = await Promise.all(IDS.map(async id => {
-        try { return await pollClan(id, now); }
-        catch (e) { return { id, error: e.message }; }
-      }));
-      await fetch(`${REST}/rep_gains?at=lt.${now - KEEP}`, { method: 'DELETE', headers: H });
+      const claimed = await claimPoll(now);
+      if (!claimed) return res.status(200).json({ ok: true, skipped: true, reason: 'recent poll' });
+      const out = await runPoll(now);
       return res.status(200).json({ ok: true, polled: out });
     }
-    const since = Date.now() - 3600e3;
-    const r = await fetch(`${REST}/rep_gains?at=gte.${since}&order=at.desc&limit=300&select=at,clan,member,gain`, { headers: H });
+
+    // Visitor requests share one database-backed poll claim across all open pages.
+    const now = Date.now();
+    if (await claimPoll(now)) await runPoll(now);
+
+    const r = await fetch(REST + '/rep_gains?at=gte.' + (now - 3600e3) + '&order=at.desc&limit=300&select=at,clan,member,gain', { headers: H });
     if (!r.ok) throw new Error('Supabase read failed: ' + r.status);
-    res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=30');
-    res.status(200).json({ now: Date.now(), gains: await r.json() });
+    res.setHeader('Cache-Control', 's-maxage=5');
+    return res.status(200).json({ now: Date.now(), gains: await r.json() });
   } catch (e) {
-    res.status(502).json({ error: e.message });
+    return res.status(502).json({ error: e.message });
   }
 }
