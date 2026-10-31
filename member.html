@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Profile · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--accent:#ff4d5a;--gold:#f5c542;--green:#3ecf8e}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.10),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1080px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a2110,#100d07);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2;overflow-wrap:anywhere}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}
+a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a,.watch{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:13px}
+.watch{font:inherit;font-size:13px;color:var(--text);cursor:pointer}
+.watch.active{border-color:#6e5724;background:#1b160b;color:var(--gold)}
+.profile{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:8px 0 18px}
+.member-level{color:var(--mute);font-size:13px;margin-top:5px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;min-width:0}
+.stat span{display:block;font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.stat small{color:var(--mute);font-size:11px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:28px 0 10px;font-weight:700}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.panel-head h2{margin:0}
+.chart-wrap{width:100%;overflow:hidden}
+#member-chart{display:block;width:100%;height:auto;min-height:190px}
+.chart-empty{min-height:190px;display:grid;place-items:center;color:var(--mute);text-align:center;border:1px dashed var(--line);border-radius:12px;padding:20px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin-top:6px}
+.legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--gold);margin-right:6px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.gain{color:var(--gold);font-weight:700}
+.empty{padding:22px;text-align:center;color:var(--mute);white-space:normal}
+.status{margin-top:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.error{color:#ff7b84}
+.muted{color:var(--mute)}
+@media(max-width:850px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){main{padding:18px 12px 48px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat b{font-size:20px}.panel{padding:12px}h1{font-size:20px}th,td{padding:9px 10px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand">
+    <div class="mark">👤</div>
+    <div><h1 id="member-name">Member Profile</h1><div class="sub">Chaos member reputation and recorded activity</div></div>
+  </div>
+  <nav class="nav"><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+</header>
+
+<section class="profile">
+  <div><div class="member-level" id="member-meta">Loading current member information…</div></div>
+  <button class="watch" id="watch-button" type="button" hidden>☆ Add to watchlist</button>
+</section>
+
+<section class="stats" aria-label="Member reputation summary">
+  <div class="stat"><span>Current reputation</span><b id="current-rep">—</b><small id="current-level">Current roster</small></div>
+  <div class="stat"><span>24-hour gain</span><b id="gain-24h">—</b><small>Recorded reputation increases</small></div>
+  <div class="stat"><span>7-day gain</span><b id="gain-7d">—</b><small>Recorded reputation increases</small></div>
+  <div class="stat"><span>30-day gain</span><b id="gain-30d">—</b><small>Available history window</small></div>
+  <div class="stat"><span>Current clan rank</span><b id="member-rank">—</b><small id="rank-note">Live roster position</small></div>
+</section>
+
+<h2>Reputation gained · 30 days</h2>
+<section class="panel">
+  <div class="panel-head"><div><strong>Daily activity</strong><div class="sub">Daily recorded increases, using Asia/Manila dates</div></div><div class="sub" id="chart-total"></div></div>
+  <div id="chart-holder" class="chart-wrap"><div class="chart-empty">Loading member history…</div></div>
+  <div class="legend"><span>Reputation gained that day</span></div>
+</section>
+
+<h2>Recorded activity timeline</h2>
+<section class="panel">
+  <div class="panel-head"><div><strong>Latest reputation changes</strong><div class="sub">Each row is an increase detected between shared game reads, not a guaranteed individual fight.</div></div><div class="sub" id="event-summary">Loading…</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Recorded at · Manila</th><th class="num">Rep gained</th><th class="num">Resulting rep</th></tr></thead>
+    <tbody id="event-rows"><tr><td colspan="3" class="empty">Loading recorded activity…</td></tr></tbody>
+  </table></div>
+</section>
+
+<div class="status"><span id="status-message" class="sub">Loading member activity…</span><span class="sub">History is retained for up to 30 days.</span></div>
+</main>
+<script>
+(function () {
+  const TZ = 'Asia/Manila';
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n || 0).toLocaleString();
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const params = new URLSearchParams(location.search);
+  const member = (params.get('name') || '').trim();
+  let data = null, watched = false;
+
+  function dayKey(date) {
+    const parts = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(date);
+    const out = {};
+    parts.forEach(p => { out[p.type] = p.value; });
+    return out.year + '-' + out.month + '-' + out.day;
+  }
+  function parseDay(key) {
+    const parts = key.split('-').map(Number);
+    return new Date(Date.UTC(parts[0], parts[1]-1, parts[2], 12));
+  }
+  function shiftDay(key, amount) {
+    const d = parseDay(key);
+    d.setUTCDate(d.getUTCDate() + amount);
+    return d.toISOString().slice(0,10);
+  }
+  function dateLabel(key, options) {
+    return new Intl.DateTimeFormat('en', Object.assign({timeZone:TZ, month:'short', day:'numeric'}, options || {})).format(parseDay(key));
+  }
+  function eventDate(value) {
+    return new Intl.DateTimeFormat('en-PH', {timeZone:TZ, year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}).format(new Date(Number(value)));
+  }
+  function syncWatch() {
+    $('watch-button').hidden = false;
+    $('watch-button').textContent = watched ? '★ Remove from watchlist' : '☆ Add to watchlist';
+    $('watch-button').classList.toggle('active', watched);
+    $('watch-button').setAttribute('aria-pressed', String(watched));
+  }
+  function readWatch() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('memberWatch') || '[]');
+      watched = Array.isArray(saved) && saved.includes(member);
+    } catch { watched = false; }
+    syncWatch();
+  }
+  function renderProfile() {
+    const profile = data.profile;
+    const stats = data.stats || {};
+    $('member-name').textContent = data.name;
+    document.title = data.name + ' · Member Profile';
+    $('member-meta').textContent = profile
+      ? 'Chaos · Level ' + (profile.level == null ? '—' : profile.level) + ' · Current rank #' + profile.rank + ' of ' + profile.roster_size
+      : 'Not in the current roster · Showing saved history only';
+    $('current-rep').textContent = profile ? fmt(profile.reputation) : '—';
+    $('current-level').textContent = profile ? 'Level ' + (profile.level == null ? '—' : profile.level) : 'Not in current roster';
+    $('gain-24h').textContent = '+' + fmt(stats.gain_24h);
+    $('gain-7d').textContent = '+' + fmt(stats.gain_7d);
+    $('gain-30d').textContent = '+' + fmt(stats.gain_30d);
+    $('member-rank').textContent = profile ? '#' + profile.rank : '—';
+    $('rank-note').textContent = profile ? 'Among ' + profile.roster_size + ' current members' : 'No current rank available';
+  }
+  function renderChart() {
+    const today = dayKey(new Date());
+    const first = shiftDay(today, -29);
+    const byDay = new Map();
+    data.history.forEach(row => {
+      if (row.day >= first && row.day <= today) byDay.set(row.day, Number(row.gain || 0));
+    });
+    const values = [];
+    for (let i=0;i<30;i++) {
+      const day = shiftDay(first, i);
+      values.push({day, gain:byDay.get(day) || 0});
+    }
+    const total = values.reduce((sum,row) => sum + row.gain, 0);
+    $('chart-total').textContent = '30-day total: +' + fmt(total) + ' rep';
+    if (!values.some(row => row.gain > 0)) {
+      $('chart-holder').innerHTML = '<div class="chart-empty">No saved gains for this member in the last 30 days.</div>';
+      return;
+    }
+    const W=900,H=250,L=58,R=18,T=18,B=42,plotW=W-L-R,plotH=H-T-B;
+    const max=Math.max(10,...values.map(row=>row.gain));
+    const top=Math.ceil(max/4)*4 || max;
+    const step=plotW/values.length, barW=Math.max(3,step*.62);
+    let svg='<svg id="member-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Daily reputation gains for '+esc(member)+' over the last 30 days">';
+    for(let i=0;i<=4;i++){
+      const value=top*i/4, y=T+plotH-(value/top)*plotH;
+      svg+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#292934" stroke-width="1"/>';
+      svg+='<text x="'+(L-9)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#8b8b98">'+fmt(value)+'</text>';
+    }
+    values.forEach((row,i)=>{
+      const h=row.gain/top*plotH, x=L+i*step+(step-barW)/2, y=T+plotH-h;
+      svg+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="2" fill="#f5c542" opacity="'+(row.gain?'.9':'.12')+'"><title>'+dateLabel(row.day)+': +'+fmt(row.gain)+' rep</title></rect>';
+      if(i%5===0 || i===29) svg+='<text x="'+(L+i*step+step/2).toFixed(1)+'" y="'+(H-15)+'" text-anchor="middle" font-size="10" fill="#8b8b98">'+dateLabel(row.day)+'</text>';
+    });
+    svg+='</svg>';
+    $('chart-holder').innerHTML=svg;
+  }
+  function renderEvents() {
+    const events = Array.isArray(data.events) ? data.events : [];
+    $('event-summary').textContent = events.length
+      ? events.length + ' recent recorded change' + (events.length === 1 ? '' : 's')
+      : 'No recorded changes';
+    $('event-rows').innerHTML = events.length ? events.map(event =>
+      '<tr><td>' + esc(eventDate(event.at)) + '</td><td class="num gain">+' + fmt(event.gain) +
+      '</td><td class="num">' + fmt(event.total) + '</td></tr>'
+    ).join('') : '<tr><td colspan="3" class="empty">No reputation increases have been recorded for this member in the available history.</td></tr>';
+    if (events.length >= Number(data.event_limit || 200)) {
+      $('event-summary').textContent = 'Showing latest ' + data.event_limit + ' recorded changes';
+    }
+  }
+  async function load() {
+    if (!member) {
+      $('member-name').textContent = 'Member not selected';
+      $('member-meta').textContent = 'Open a member from the tracker or activity page.';
+      $('status-message').textContent = 'Missing member name in the page address.';
+      $('status-message').classList.add('error');
+      $('chart-holder').innerHTML = '<div class="chart-empty">Select a member from the tracker to view their profile.</div>';
+      $('event-rows').innerHTML = '<tr><td colspan="3" class="empty">No member selected.</td></tr>';
+      return;
+    }
+    try {
+      const response = await fetch('/api/member-activity?name=' + encodeURIComponent(member), {cache:'no-store'});
+      const next = await response.json();
+      if (!response.ok) throw new Error(next.error || 'Member activity API returned HTTP ' + response.status);
+      if (!next.profile && !Array.isArray(next.history)) throw new Error('Member history is incomplete.');
+      data = next;
+      renderProfile();
+      renderChart();
+      renderEvents();
+      readWatch();
+      $('status-message').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
+        ' · ' + data.history.length + ' daily records available';
+    } catch (error) {
+      $('status-message').textContent = error.message;
+      $('status-message').classList.add('error');
+      $('chart-holder').innerHTML = '<div class="chart-empty error">Unable to load this member profile.</div>';
+      $('event-rows').innerHTML = '<tr><td colspan="3" class="empty error">' + esc(error.message) + '</td></tr>';
+    }
+  }
+  $('watch-button').addEventListener('click', () => {
+    if (!member) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('memberWatch') || '[]');
+      const names = new Set(Array.isArray(saved) ? saved.filter(value => typeof value === 'string') : []);
+      if (names.has(member)) names.delete(member);
+      else names.add(member);
+      localStorage.setItem('memberWatch', JSON.stringify([...names]));
+      watched = names.has(member);
+      syncWatch();
+    } catch {
+      $('status-message').textContent = 'Unable to update this browser watchlist.';
+      $('status-message').classList.add('error');
+    }
+  });
+  load();
+})();
+</script>
+</body>
+</html>
