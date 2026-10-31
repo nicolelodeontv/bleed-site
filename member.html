@@ -37,6 +37,17 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 .panel-head h2{margin:0}
 .chart-wrap{width:100%;overflow:hidden}
 #member-chart{display:block;width:100%;height:auto;min-height:190px}
+.season-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:14px}
+.season-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:12px;padding:11px 12px;min-width:0}
+.season-stat span{display:block;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.season-stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums;margin-top:3px;overflow:hidden;text-overflow:ellipsis}
+.season-stat small{display:block;color:var(--mute);font-size:10px;margin-top:1px}
+.season-chart-scroll{overflow-x:auto;overflow-y:hidden}
+#season-chart{display:block;height:240px;max-width:none}
+.season-notice{font-size:12px;color:var(--mute);margin-top:11px}
+.season-pill{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:10px;color:var(--mute)}
+.season-pill.active{color:var(--green);border-color:#24533d;background:#0c1812}
+.season-table a{white-space:nowrap}
 .chart-empty{min-height:190px;display:grid;place-items:center;color:var(--mute);text-align:center;border:1px dashed var(--line);border-radius:12px;padding:20px}
 .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin-top:6px}
 .legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--gold);margin-right:6px}
@@ -55,7 +66,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .error{color:#ff7b84}
 .muted{color:var(--mute)}
 @media(max-width:850px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:600px){main{padding:18px 12px 48px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat b{font-size:20px}.panel{padding:12px}h1{font-size:20px}th,td{padding:9px 10px}}
+@media(max-width:600px){main{padding:18px 12px 48px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.season-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.stat b,.season-stat b{font-size:20px}.panel{padding:12px}h1{font-size:20px}th,td{padding:9px 10px}}
 </style>
 </head>
 <body>
@@ -91,6 +102,30 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <div class="legend"><span>Reputation gained that day</span></div>
 </section>
 
+<h2>Cross-season member performance</h2>
+<section class="panel">
+  <div class="panel-head">
+    <div><strong>Season-by-season history</strong><div class="sub">Your recorded reputation growth and ranking across tracked Chaos seasons</div></div>
+    <button class="export-button" id="export-seasons-csv" type="button" disabled>↓ Export season history CSV</button>
+  </div>
+  <div class="season-summary" aria-label="Cross-season summary">
+    <div class="season-stat"><span>Tracked seasons</span><b id="season-count">—</b><small>With a saved member baseline</small></div>
+    <div class="season-stat"><span>All-time recorded gain</span><b id="season-total-gain">—</b><small>Sum across tracked seasons</small></div>
+    <div class="season-stat"><span>Best season rank</span><b id="season-best-rank">—</b><small id="season-best-label">No rank yet</small></div>
+    <div class="season-stat"><span>Recorded gain events</span><b id="season-event-count">—</b><small id="season-active-days">— active days</small></div>
+  </div>
+  <div class="panel-head"><div><strong>Reputation gained per season</strong><div class="sub">Only saved season gains are included</div></div><div class="sub" id="season-chart-total"></div></div>
+  <div id="season-chart-holder" class="season-chart-scroll"><div class="chart-empty">Loading cross-season history…</div></div>
+  <div class="season-notice" id="season-history-note">Loading season notes…</div>
+  <h2>Season results</h2>
+  <div class="table-wrap"><table class="season-table">
+    <thead><tr><th>Season</th><th>Status</th><th class="num">Rank</th><th class="num">Starting rep</th><th class="num">Current rep</th><th class="num">Season gain</th><th class="num">Events</th><th class="num">Active days</th><th class="num">Vs previous</th></tr></thead>
+    <tbody id="season-history-rows"><tr><td colspan="9" class="empty">Loading cross-season history…</td></tr></tbody>
+  </table></div>
+  <div class="season-notice">Ranks are calculated against members with recorded season totals. Missing season records are shown as “Not tracked”; no values are inferred from the rolling 30-day history.</div>
+  <div class="status"><span id="season-history-status" class="sub">Loading cross-season history…</span><a href="/seasons.html">Open full season leaderboard →</a></div>
+</section>
+
 <h2>Recorded activity timeline</h2>
 <section class="panel">
   <div class="panel-head"><div><strong>Latest reputation changes</strong><div class="sub">Each row is an increase detected between shared game reads, not a guaranteed individual fight.</div></div><div class="sub" id="event-summary">Loading…</div></div>
@@ -111,7 +146,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const params = new URLSearchParams(location.search);
   const member = (params.get('name') || '').trim();
-  let data = null, watched = false, loadingOlder = false, exporting = false;
+  let data = null, seasonData = null, watched = false, loadingOlder = false, exporting = false, exportingSeasons = false;
 
   function dayKey(date) {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(date);
@@ -150,6 +185,135 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function seasonDate(value) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('en-PH', {timeZone:TZ,year:'numeric',month:'short',day:'numeric'}).format(new Date(Number(value)));
+  }
+  function seasonRankLabel(row) {
+    return row.rank == null ? '—' : '#' + fmt(row.rank) + ' / ' + fmt(row.ranked_members);
+  }
+  function renderSeasonChart() {
+    const rows = (seasonData.history || []).filter(row => row.tracked).slice().reverse();
+    const total = rows.reduce((sum,row) => sum + Number(row.season_gain || 0), 0);
+    $('season-chart-total').textContent = 'Recorded total: +' + fmt(total) + ' rep';
+    if (!rows.length) {
+      $('season-chart-holder').innerHTML = '<div class="chart-empty">No season totals have been recorded for this member yet.</div>';
+      return;
+    }
+    const width = Math.max(600, rows.length * 116 + 70);
+    const height = 240, left = 54, right = 18, top = 18, bottom = 48;
+    const plotWidth = width - left - right, plotHeight = height - top - bottom;
+    const max = Math.max(10, ...rows.map(row => Number(row.season_gain || 0)));
+    const ceiling = Math.ceil(max / 4) * 4 || max;
+    const step = plotWidth / rows.length;
+    const barWidth = Math.min(54, step * .58);
+    let svg = '<svg id="season-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Season reputation gains for ' + esc(member) + '">';
+    for (let i=0;i<=4;i++) {
+      const value = ceiling * i / 4;
+      const y = top + plotHeight - value / ceiling * plotHeight;
+      svg += '<line x1="' + left + '" y1="' + y + '" x2="' + (width-right) + '" y2="' + y + '" stroke="#292934" stroke-width="1"/>';
+      svg += '<text x="' + (left-8) + '" y="' + (y+4) + '" text-anchor="end" font-size="10" fill="#8b8b98">' + fmt(value) + '</text>';
+    }
+    rows.forEach((row,index) => {
+      const value = Number(row.season_gain || 0);
+      const barHeight = value / ceiling * plotHeight;
+      const x = left + index * step + (step - barWidth) / 2;
+      const y = top + plotHeight - barHeight;
+      svg += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barWidth.toFixed(1) + '" height="' + Math.max(value ? 2 : 0, barHeight).toFixed(1) + '" rx="3" fill="#f5c542" opacity=".9"><title>Season ' + row.season_number + ': +' + fmt(value) + ' reputation · rank ' + (row.rank == null ? 'unranked' : '#' + row.rank) + '</title></rect>';
+      svg += '<text x="' + (x+barWidth/2).toFixed(1) + '" y="' + (height-25) + '" text-anchor="middle" font-size="12" fill="#ececf1">S' + row.season_number + '</text>';
+      svg += '<text x="' + (x+barWidth/2).toFixed(1) + '" y="' + (height-9) + '" text-anchor="middle" font-size="10" fill="#8b8b98">' + (row.rank == null ? '—' : '#' + row.rank) + '</text>';
+    });
+    svg += '</svg>';
+    $('season-chart-holder').innerHTML = svg;
+  }
+  function renderSeasonHistory() {
+    if (!seasonData) return;
+    const recorded = (seasonData.history || []).filter(row => row.tracked);
+    $('season-count').textContent = fmt(seasonData.season_count);
+    $('season-total-gain').textContent = '+' + fmt(seasonData.total_recorded_gain);
+    $('season-best-rank').textContent = seasonData.best_rank == null ? '—' : '#' + fmt(seasonData.best_rank);
+    $('season-best-label').textContent = seasonData.best_rank_season == null ? 'No rank yet' : 'Season ' + seasonData.best_rank_season;
+    $('season-event-count').textContent = fmt(seasonData.total_gain_events);
+    $('season-active-days').textContent = fmt(seasonData.total_active_days) + ' summed active days';
+    const delta = seasonData.current_vs_previous_gain;
+    const deltaText = delta == null ? 'No previous tracked season to compare' :
+      (delta > 0 ? '+' : delta < 0 ? '−' : '±') + fmt(Math.abs(delta)) + ' rep vs previous tracked season';
+    $('season-history-note').textContent = seasonData.active_season_tracked
+      ? 'Season ' + seasonData.active_season_number + ' is included in this profile. ' + deltaText + '.'
+      : 'This member has no saved baseline in the current season yet. ' + deltaText + '.';
+    const bySeason = seasonData.history.filter(row => row.tracked);
+    const previousGain = new Map();
+    bySeason.forEach((row,index) => {
+      const previous = bySeason[index+1];
+      previousGain.set(row.season_number, previous ? Number(row.season_gain || 0) - Number(previous.season_gain || 0) : null);
+    });
+    $('season-history-rows').innerHTML = seasonData.history.length ? seasonData.history.map(row => {
+      const diff = previousGain.get(row.season_number);
+      const diffText = diff == null ? '—' : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + fmt(Math.abs(diff));
+      return '<tr>' +
+        '<td><a href="/seasons.html?season=' + encodeURIComponent(row.season_number) + '">Season ' + fmt(row.season_number) + '</a></td>' +
+        '<td><span class="season-pill ' + (row.status === 'active' ? 'active' : '') + '">' + (row.status === 'active' ? 'Current' : 'Completed') + '</span></td>' +
+        '<td class="num">' + (row.tracked ? seasonRankLabel(row) : '—') + '</td>' +
+        '<td class="num">' + (row.tracked ? fmt(row.starting_rep) : '—') + '</td>' +
+        '<td class="num">' + (row.tracked ? fmt(row.current_rep) : '—') + '</td>' +
+        '<td class="num gain">' + (row.tracked ? '+' + fmt(row.season_gain) : '—') + '</td>' +
+        '<td class="num">' + (row.tracked ? fmt(row.gain_events) : '—') + '</td>' +
+        '<td class="num">' + (row.tracked ? fmt(row.active_days) : '—') + '</td>' +
+        '<td class="num">' + (row.tracked ? diffText : '<span class="muted">Not tracked</span>') + '</td>' +
+        '</tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">No season records are available.</td></tr>';
+    $('export-seasons-csv').disabled = !seasonData.history.length;
+    $('season-history-status').textContent = 'Updated ' + new Date(seasonData.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
+      ' · ' + recorded.length + ' tracked seasons';
+    renderSeasonChart();
+  }
+  async function loadSeasonHistory() {
+    if (!member) return;
+    try {
+      const response = await fetch('/api/member-seasons?name=' + encodeURIComponent(member), {cache:'no-store'});
+      const next = await response.json();
+      if (!response.ok) throw new Error(next.error || 'Cross-season API returned HTTP ' + response.status);
+      if (!Array.isArray(next.history)) throw new Error('Cross-season history is incomplete.');
+      seasonData = next;
+      renderSeasonHistory();
+      $('season-history-status').classList.remove('error');
+    } catch (error) {
+      $('season-history-status').textContent = error.message;
+      $('season-history-status').classList.add('error');
+      $('season-history-rows').innerHTML = '<tr><td colspan="9" class="empty error">' + esc(error.message) + '</td></tr>';
+      $('season-chart-holder').innerHTML = '<div class="chart-empty error">Unable to load cross-season history.</div>';
+    }
+  }
+  function exportSeasonHistory() {
+    if (!seasonData || exportingSeasons) return;
+    exportingSeasons = true;
+    const button = $('export-seasons-csv');
+    button.disabled = true;
+    button.textContent = 'Preparing CSV…';
+    try {
+      const rows = [
+        ['Season','Status','Started (Asia/Manila)','Ended (Asia/Manila)','Rank','Ranked members','Starting reputation','Current reputation','Season gain','Gain events','Active days','Last gain (Asia/Manila)'],
+        ...seasonData.history.map(row => [
+          row.season_number,row.status,seasonDate(row.started_at),row.ended_at ? seasonDate(row.ended_at) : '',
+          row.rank == null ? '' : row.rank,row.ranked_members,row.starting_rep == null ? '' : row.starting_rep,
+          row.current_rep == null ? '' : row.current_rep,row.season_gain == null ? '' : row.season_gain,
+          row.gain_events == null ? '' : row.gain_events,row.active_days == null ? '' : row.active_days,
+          row.last_gain_at ? eventDate(row.last_gain_at) : ''
+        ])
+      ];
+      const slug = member.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'').toLowerCase();
+      downloadCsv('chaos-' + slug + '-season-history.csv',rows);
+      $('season-history-status').textContent = 'Exported ' + seasonData.history.length + ' season records to CSV.';
+      $('season-history-status').classList.remove('error');
+    } catch (error) {
+      $('season-history-status').textContent = error.message;
+      $('season-history-status').classList.add('error');
+    } finally {
+      exportingSeasons = false;
+      button.disabled = false;
+      button.textContent = '↓ Export season history CSV';
+    }
   }
   function syncWatch() {
     $('watch-button').hidden = false;
@@ -338,6 +502,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       renderChart();
       renderEvents();
       readWatch();
+      loadSeasonHistory();
       $('status-message').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
         ' · ' + data.history.length + ' daily records available';
     } catch (error) {
@@ -349,6 +514,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   }
   $('load-older').addEventListener('click', loadOlder);
   $('export-csv').addEventListener('click', exportHistory);
+  $('export-seasons-csv').addEventListener('click', exportSeasonHistory);
   $('watch-button').addEventListener('click', () => {
     if (!member) return;
     try {
