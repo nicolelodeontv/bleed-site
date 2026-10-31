@@ -35,7 +35,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .member-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;max-height:280px;overflow:auto}
 .member-option{display:flex;align-items:center;gap:9px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f;cursor:pointer}
 .member-option:has(input:checked){border-color:#51421f;background:#171309}
-.member-option input{accent-color:#f5c542;width:16px;height:16px;flex:0 0 auto}
+.member-option input{appearance:auto;accent-color:#f5c542;width:16px;height:16px;padding:0;border:0;background:transparent;flex:0 0 auto;margin:0}
 .member-option input:disabled{opacity:.35}
 .member-option .member-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:13px}
 .member-option .rank{color:var(--mute);font-size:11px;font-variant-numeric:tabular-nums}
