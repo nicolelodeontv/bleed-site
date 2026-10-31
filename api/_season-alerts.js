@@ -44,6 +44,7 @@ function makeDiscordPayload(alert) {
   const previousSeason = Number(payload.previous_season_number || alert.previous_season_number);
   const startedAt = Number(payload.started_at || alert.created_at || Date.now());
   const top5 = Array.isArray(payload.previous_top5) ? payload.previous_top5.slice(0, 5) : [];
+  const awards = Array.isArray(payload.previous_awards) ? payload.previous_awards : [];
   const baselineMembers = Number(payload.baseline_member_count) || 0;
   const baselineRep = Number(payload.baseline_total_rep) || 0;
 
@@ -53,6 +54,18 @@ function makeDiscordPayload(alert) {
         ' · **+' + Number(row.gain || 0).toLocaleString('en-US') + ' rep**'
       ).join('\n')
     : 'No positive member gains were recorded in the previous tracked season.';
+
+  const awardLines = awards.length
+    ? awards.map(award => {
+        const winners = Array.isArray(award.winners) ? award.winners : [];
+        const metric = Number(award.winning_value || 0).toLocaleString('en-US');
+        const unit = award.award_key === 'most_active' || award.award_key === 'consistency'
+          ? ' days'
+          : award.award_key === 'most_recorded_increases' ? ' recorded increases' : ' rep';
+        const names = winners.map(winner => safeText(winner.member)).join(', ');
+        return '**' + safeText(award.award_title) + '** · ' + names + ' · **' + metric + unit + '**';
+      }).join('\\n')
+    : 'No award met the positive-activity requirements in the previous tracked season.';
 
   const pingRole = process.env.PING_ENABLED === 'true' && DISCORD_ROLE_ID;
   const embed = {
@@ -79,6 +92,11 @@ function makeDiscordPayload(alert) {
         value: topLines,
         inline: false,
       },
+      {
+        name: '🏅 Season ' + previousSeason + ' awards',
+        value: awardLines,
+        inline: false,
+      },
     ],
     footer: { text: 'Bleed Watch · automatic season rollover' },
     timestamp: new Date(startedAt).toISOString(),
@@ -95,6 +113,11 @@ function makeDiscordPayload(alert) {
         style: 5,
         label: 'Open Season ' + season + ' leaderboard',
         url: SITE + '/seasons.html?season=' + encodeURIComponent(season),
+      }, {
+        type: 2,
+        style: 5,
+        label: 'Hall of Fame',
+        url: SITE + '/hall-of-fame.html',
       }],
     }],
     // Discord checks a nonce for uniqueness over the past few minutes.
