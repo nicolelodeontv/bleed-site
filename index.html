@@ -100,6 +100,11 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <section id="chaos-members">
   <h2>Chaos members</h2>
   <div class="sub" id="cm-sub" style="margin:-4px 0 8px">Waiting for the shared game read…</div>
+  <div class="cm-tools">
+    <button type="button" id="cm-view-all" class="cm-filter active">All members</button>
+    <button type="button" id="cm-view-watched" class="cm-filter">Watched only <span id="cm-watch-count">0</span></button>
+    <span id="cm-watch-summary" class="sub">No members watched</span>
+  </div>
   <div class="wrap cm-wrap"><table>
     <thead><tr><th>#</th><th>Member</th><th class="hm">Lv</th><th class="n">Reputation</th><th class="n">24h Gain</th><th class="n">7d Gain</th><th class="n">30d Gain</th></tr></thead>
     <tbody id="cm-rows"></tbody>
@@ -425,6 +430,16 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 .cm-wrap{max-height:420px}
 #cm-sub.sync-stale{color:var(--accent)}
 .cm-history-note{margin-top:8px}
+.cm-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.cm-tools .sub{margin-left:auto}
+.cm-filter{padding:6px 11px;font-size:12px;border-radius:999px}
+.cm-filter.active{border-color:#6e5724;background:#1b160b;color:#f5c542}
+.member-star{border:0;background:none;padding:0 7px 0 0;color:#8b8b98;font-size:17px;line-height:1;vertical-align:middle}
+.member-star[aria-pressed="true"]{color:#f5c542}
+.cm-watched td:nth-child(2){color:#f5d578}
+.cm-empty{text-align:center;color:var(--mute);padding:18px}
+.toast.member-watch-toast{border-color:#94701f;background:linear-gradient(110deg,rgba(245,197,66,.2),#17140d 68%);box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 0 1px rgba(245,197,66,.08)}
+.toast .watch-tag{color:#ffd45a;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
 .mrow-up td{animation:mflash 1.6s ease}
 @keyframes mflash{from{background:rgba(245,197,66,.25)}to{background:transparent}}
 .gn{color:#f5c542}
@@ -433,55 +448,115 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 <script>
 (function () {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const prev = {};
+  const prev = {}, alerted = new Set();
   const sub = document.getElementById("cm-sub");
   const rows = document.getElementById("cm-rows");
-  if (!sub || !rows) return;
-  let got = false;
+  const allButton = document.getElementById("cm-view-all");
+  const watchedButton = document.getElementById("cm-view-watched");
+  const watchCount = document.getElementById("cm-watch-count");
+  const watchSummary = document.getElementById("cm-watch-summary");
+  if (!sub || !rows || !allButton || !watchedButton || !watchCount || !watchSummary) return;
+
+  let watching = new Set(), view = "all", latest = null, got = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem("memberWatch") || "[]");
+    if (Array.isArray(saved)) watching = new Set(saved.filter(name => typeof name === "string" && name.trim()));
+  } catch {}
   const waiting = setTimeout(() => {
     if (!got) sub.textContent = "Still waiting for the shared game members list. Check the browser Console if this persists.";
   }, 15000);
-
   const formatGain = value => value > 0 ? "+" + value.toLocaleString() : "–";
 
+  function syncWatchControls() {
+    allButton.classList.toggle("active", view === "all");
+    watchedButton.classList.toggle("active", view === "watched");
+    watchCount.textContent = watching.size;
+    watchSummary.textContent = watching.size ? "Watching " + watching.size + " member" + (watching.size === 1 ? "" : "s") : "No members watched";
+  }
+  function saveWatchlist() {
+    try { localStorage.setItem("memberWatch", JSON.stringify([...watching])); } catch {}
+    syncWatchControls();
+  }
+  function showWatchedAlert(detail) {
+    const member = String(detail.member || "");
+    const gain = Number(detail.gain), total = Number(detail.total);
+    if (!member || !watching.has(member) || !Number.isFinite(gain) || gain <= 0) return;
+    const eventKey = [member, detail.at || "", gain, Number.isFinite(total) ? total : ""].join("|");
+    if (alerted.has(eventKey)) return;
+    alerted.add(eventKey);
+    if (alerted.size > 300) alerted.delete(alerted.values().next().value);
+
+    const box = document.getElementById("toasts");
+    if (!box) return;
+    const el = document.createElement("div");
+    el.className = "toast rep-toast member-watch-toast";
+    const current = Number.isFinite(total) ? "Current reputation: " + total.toLocaleString() : "Reputation updated";
+    el.innerHTML = '<div><small class="watch-tag">★ WATCHLIST ALERT</small><b>' + esc(member) + '</b><small>' + esc(current) + '</small></div><div class="g">+' + gain.toLocaleString() + ' rep</div>';
+    const close = () => {
+      if (!el.isConnected || el.classList.contains("out")) return;
+      el.classList.add("out");
+      setTimeout(() => el.remove(), 300);
+    };
+    el.onclick = close;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(close, 8000);
+
+    if (typeof muted !== "undefined" && !muted && typeof sound !== "undefined" && sound && typeof beep === "function") beep();
+    if (typeof muted !== "undefined" && !muted && "Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification("★ " + member + " gained reputation", {
+          body: "+" + gain.toLocaleString() + " rep · " + current,
+          tag: "watched-member-" + member
+        });
+      } catch {}
+    }
+  }
   function render(d) {
     if (!d || !Array.isArray(d.members)) return;
+    latest = d;
     const seen = new Set();
-    const ms = d.members
+    const members = d.members
       .filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name))
       .sort((a, b) => (b.rep || 0) - (a.rep || 0));
-    const history = new Map(
-      (Array.isArray(d.member_history) ? d.member_history : [])
-        .map(item => [item.member, item])
-    );
-
+    const history = new Map((Array.isArray(d.member_history) ? d.member_history : []).map(item => [item.member, item]));
     const snapshotAt = Number(d.snapshot_at) || 0;
     const ageSeconds = snapshotAt ? Math.max(0, Math.floor((Date.now() - snapshotAt) / 1000)) : null;
     const freshness = ageSeconds === null ? " · waiting for shared sync" : " · shared read " + ageSeconds + "s ago";
     sub.classList.toggle("sync-stale", ageSeconds === null || ageSeconds > 15 || !!d.sync_error);
-    sub.textContent = (d.name || "Chaos") + " · " + ms.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString() + freshness + (d.sync_error ? " · sync issue" : "");
+    sub.textContent = (d.name || "Chaos") + " · " + members.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString() + freshness + (d.sync_error ? " · sync issue" : "");
 
-    rows.innerHTML = ms.map((m, i) => {
+    const visible = view === "watched" ? members.filter(m => watching.has(m.name)) : members;
+    rows.innerHTML = visible.length ? visible.map((m, i) => {
       const stats = history.get(m.name) || {};
-      const g24 = Number(stats.gain_24h) || 0;
-      const g7 = Number(stats.gain_7d) || 0;
-      const g30 = Number(stats.gain_30d) || 0;
+      const g24 = Number(stats.gain_24h) || 0, g7 = Number(stats.gain_7d) || 0, g30 = Number(stats.gain_30d) || 0;
       const up = prev[m.name] !== undefined && m.rep > prev[m.name];
       prev[m.name] = m.rep;
-      return '<tr class="' + (up ? "mrow-up" : "") + '"><td class="k ' + (i < 3 ? "g" + (i + 1) : "") + '">' + (i + 1) + '</td>' +
-        '<td>' + esc(m.name) + '</td><td class="hm">' + (m.level || "-") + '</td>' +
-        '<td class="n">' + Number(m.rep || 0).toLocaleString() + '</td>' +
+      const isWatched = watching.has(m.name);
+      return '<tr class="' + (up ? "mrow-up" : "") + (isWatched ? " cm-watched" : "") + '"><td class="k ' + (i < 3 ? "g" + (i + 1) : "") + '">' + (i + 1) + '</td>' +
+        '<td><button type="button" class="member-star" data-member-watch="' + esc(m.name) + '" aria-pressed="' + isWatched + '" aria-label="' + (isWatched ? "Remove " : "Watch ") + esc(m.name) + '">' + (isWatched ? "★" : "☆") + '</button><span class="cm-member-name">' + esc(m.name) + '</span></td>' +
+        '<td class="hm">' + (m.level || "-") + '</td><td class="n">' + Number(m.rep || 0).toLocaleString() + '</td>' +
         '<td class="n gn' + (g24 > 0 ? "" : " z") + '">' + formatGain(g24) + '</td>' +
         '<td class="n gn' + (g7 > 0 ? "" : " z") + '">' + formatGain(g7) + '</td>' +
         '<td class="n gn' + (g30 > 0 ? "" : " z") + '">' + formatGain(g30) + '</td></tr>';
-    }).join("");
+    }).join("") : '<tr><td colspan="7" class="cm-empty">' + (view === "watched" ? "No watched members yet. Star a member to add them to your watchlist." : "No members found.") + '</td></tr>';
+    syncWatchControls();
   }
 
-  window.addEventListener("chaos-members", e => {
-    got = true;
-    clearTimeout(waiting);
-    render(e.detail);
+  rows.addEventListener("click", event => {
+    const button = event.target.closest("[data-member-watch]");
+    if (!button) return;
+    const member = button.getAttribute("data-member-watch");
+    if (watching.has(member)) watching.delete(member);
+    else watching.add(member);
+    saveWatchlist();
+    if (latest) render(latest);
   });
+  allButton.addEventListener("click", () => { view = "all"; if (latest) render(latest); else syncWatchControls(); });
+  watchedButton.addEventListener("click", () => { view = "watched"; if (latest) render(latest); else syncWatchControls(); });
+  window.addEventListener("chaos-members", event => { got = true; clearTimeout(waiting); render(event.detail); });
+  window.addEventListener("chaos-rep-gain", event => showWatchedAlert(event.detail || {}));
+  syncWatchControls();
 })();</script>
 </body>
 </html>
