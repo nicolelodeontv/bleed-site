@@ -28,6 +28,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 .panel-head h2{margin:0}
 .toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 button,select,input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px}
+.member-profile-link{display:inline-flex;align-items:center;padding:8px 11px;border:1px solid #51421f;border-radius:9px;background:#171309;color:var(--gold);font-size:12px;text-decoration:none}.member-profile-link[aria-disabled="true"]{opacity:.45;pointer-events:none}
 button{cursor:pointer;font-size:12px}
 button:hover,select:hover{border-color:#484858}
 button.active{background:#1b160b;border-color:#6e5724;color:var(--gold)}
@@ -77,7 +78,7 @@ td.rank{width:35px;color:var(--mute)}
 <section class="panel">
   <div class="panel-head">
     <div><strong id="chart-member">Select a member</strong><div class="sub">Daily reputation gained over the last 30 days</div></div>
-    <div class="toolbar"><label class="sub" for="member-select">Member</label><select id="member-select"><option value="">Loading members…</option></select></div>
+    <div class="toolbar"><label class="sub" for="member-select">Member</label><select id="member-select"><option value="">Loading members…</option></select><a class="member-profile-link" id="member-profile-link" href="#" aria-disabled="true">Open profile ↗</a></div>
   </div>
   <div id="chart-holder" class="chart-wrap"><div class="chart-empty">Loading member activity…</div></div>
   <div class="legend"><span>Reputation gained that day</span><span id="chart-total"></span></div>
@@ -142,6 +143,9 @@ td.rank{width:35px;color:var(--mute)}
   function rangeValue(item) {
     return range === '24h' ? Number(item.gain_24h || 0) : range === '7d' ? Number(item.gain_7d || 0) : Number(item.gain_30d || 0);
   }
+  function memberLink(name) {
+    return '<a href="/member.html?name=' + encodeURIComponent(name) + '">' + esc(name) + '</a>';
+  }
 
   function setSummary() {
     const today = dayKey(new Date());
@@ -164,6 +168,9 @@ td.rank{width:35px;color:var(--mute)}
     if (!selectedMember || !names.has(selectedMember)) selectedMember = sorted[0] || '';
     $('member-select').innerHTML = sorted.map(name => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('') || '<option value="">No member history</option>';
     $('member-select').value = selectedMember;
+    const profileLink = $('member-profile-link');
+    profileLink.href = selectedMember ? '/member.html?name=' + encodeURIComponent(selectedMember) : '#';
+    profileLink.setAttribute('aria-disabled', String(!selectedMember));
   }
 
   function renderChart() {
@@ -213,14 +220,14 @@ td.rank{width:35px;color:var(--mute)}
 
   function renderTop() {
     const rows = data.stats.slice().sort((a,b)=>rangeValue(b)-rangeValue(a)).filter(row=>rangeValue(row)>0).slice(0,10);
-    $('top-rows').innerHTML = rows.length ? rows.map((row,i)=>'<tr><td class="rank">'+(i+1)+'</td><td><div class="member-cell">'+esc(row.member)+'</div></td><td class="num gain">+'+fmt(rangeValue(row))+'</td></tr>').join('') : '<tr><td colspan="3" class="empty">No gains recorded in this period yet.</td></tr>';
+    $('top-rows').innerHTML = rows.length ? rows.map((row,i)=>'<tr><td class="rank">'+(i+1)+'</td><td><div class="member-cell">'+memberLink(row.member)+'</div></td><td class="num gain">+'+fmt(rangeValue(row))+'</td></tr>').join('') : '<tr><td colspan="3" class="empty">No gains recorded in this period yet.</td></tr>';
     document.querySelectorAll('[data-range]').forEach(button=>button.classList.toggle('active',button.dataset.range===range));
   }
 
   function renderDaily() {
     const day = $('day-select').value;
     const rows = data.activity.filter(row=>row.day===day).slice().sort((a,b)=>Number(b.gain)-Number(a.gain)).slice(0,10);
-    $('daily-rows').innerHTML = rows.length ? rows.map((row,i)=>'<tr><td class="rank">'+(i+1)+'</td><td>'+esc(row.member)+'</td><td class="num gain">+'+fmt(row.gain)+'</td><td class="num">'+fmt(row.events)+'</td></tr>').join('') : '<tr><td colspan="4" class="empty">No recorded gains for '+esc(dateLabel(day, {year:'numeric',month:'short',day:'numeric'})) +'.</td></tr>';
+    $('daily-rows').innerHTML = rows.length ? rows.map((row,i)=>'<tr><td class="rank">'+(i+1)+'</td><td>'+memberLink(row.member)+'</td><td class="num gain">+'+fmt(row.gain)+'</td><td class="num">'+fmt(row.events)+'</td></tr>').join('') : '<tr><td colspan="4" class="empty">No recorded gains for '+esc(dateLabel(day, {year:'numeric',month:'short',day:'numeric'})) +'.</td></tr>';
   }
 
   function render() {
