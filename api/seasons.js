@@ -361,6 +361,9 @@ function analyticsBuildWeek(rows, start, end) {
   const leaders = Array.from(members.values()).sort((a,b) =>
     b.gain - a.gain || b.events - a.events || a.member.localeCompare(b.member)
   );
+  const mostActive = Array.from(members.values()).sort((a,b) =>
+    b.active_days - a.active_days || b.gain - a.gain || a.member.localeCompare(b.member)
+  );
   return {
     start, end,
     total_gain: totalGain,
@@ -368,6 +371,8 @@ function analyticsBuildWeek(rows, start, end) {
     active_members: members.size,
     active_days: dates.size,
     top_gainers: leaders.slice(0, 5),
+    top_active_members: mostActive.slice(0, 5),
+    member_gains: leaders,
   };
 }
 
@@ -425,14 +430,23 @@ async function handleSeasonAnalytics(req, res) {
       limit: '1000',
     });
 
-    const [dailyResult, rankingResult, statsResult] = await Promise.all([
+    const recordQuery = new URLSearchParams({
+      select: 'member,record_key,record_title,record_value,season_number,achieved_at',
+      season_number: 'eq.' + seasonNumber,
+      achieved_at: 'gte.' + Date.parse(today + 'T00:00:00+08:00'),
+      order: 'achieved_at.desc',
+      limit: '1000',
+    });
+    const [dailyResult, rankingResult, statsResult, recordResult] = await Promise.all([
       read('/chaos_season_daily_stats?' + dailyQuery.toString(), 'Daily season analytics'),
       read('/chaos_season_daily_rankings?' + rankingQuery.toString(), 'Daily leaderboard snapshots'),
       read('/chaos_season_member_stats?' + statsQuery.toString(), 'Current season member totals'),
+      read('/chaos_personal_best_records?' + recordQuery.toString(), 'Weekly personal records'),
     ]);
     const dailyRows = Array.isArray(dailyResult) ? dailyResult : [];
     const rankingRows = Array.isArray(rankingResult) ? rankingResult : [];
     const statsRows = Array.isArray(statsResult) ? statsResult : [];
+    const recordRows = Array.isArray(recordResult) ? recordResult : [];
 
     const dayMap = new Map();
     const memberTotals = new Map();
@@ -489,6 +503,31 @@ async function handleSeasonAnalytics(req, res) {
     const previousWeekEnd = analyticsAddDays(currentWeekStart, -1);
     const currentWeek = analyticsBuildWeek(dailyRows, currentWeekStart, today);
     const previousWeek = analyticsBuildWeek(dailyRows, previousWeekStart, previousWeekEnd);
+    const weeklyHistoryReady = !!dailyFirst && dailyFirst <= previousWeekStart;
+    const currentWeekMembers = currentWeek.member_gains;
+    const previousWeekMembers = previousWeek.member_gains;
+    delete currentWeek.member_gains;
+    delete previousWeek.member_gains;
+    const previousWeekMap = new Map(previousWeekMembers.map(row => [row.member, row]));
+    const biggestImprovements = weeklyHistoryReady
+      ? currentWeekMembers.map(row => {
+          const previous = previousWeekMap.get(row.member);
+          return {
+            member: row.member,
+            current_gain: row.gain,
+            previous_gain: previous ? previous.gain : 0,
+            improvement: row.gain - (previous ? previous.gain : 0),
+          };
+        }).sort((a,b) => b.improvement - a.improvement || a.member.localeCompare(b.member))
+          .filter(row => row.improvement > 0).slice(0, 5)
+      : [];
+    const notableRecords = recordRows.map(row => ({
+      member: row.member,
+      record_key: row.record_key,
+      record_title: row.record_title,
+      record_value: Number(row.record_value || 0),
+      achieved_at: Number(row.achieved_at || 0),
+    })).filter(row => row.achieved_at > 0);
 
     const momentumReady = !!dailyFirst && dailyFirst <= analyticsAddDays(today, -13);
     const momentum = statsRows.map(row => {
@@ -601,6 +640,12 @@ async function handleSeasonAnalytics(req, res) {
       weekly: {
         current: currentWeek,
         previous: previousWeek,
+        improvements_available: weeklyHistoryReady,
+        biggest_improvements: biggestImprovements,
+        notable_records: notableRecords.slice(0, 10),
+        note: weeklyHistoryReady
+          ? 'Week-over-week improvements compare complete saved calendar weeks.'
+          : 'Biggest improvements are withheld until the daily ledger covers the full previous calendar week.',
       },
       momentum: {
         available: momentumReady,
