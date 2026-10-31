@@ -91,10 +91,9 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <div id="list"></div>
 
   <aside id="fights">
-    <h2>Clan fights · last hour</h2>
-    <div class="fgrid" id="fclans" aria-live="polite"></div>
-    <div id="livewins"></div>
-    <div id="wins" aria-live="polite"><div class="empty">Loading recent wins…</div></div>
+    <h2>Chaos attacks</h2>
+    <div class="sub" id="atk-count" style="margin:-4px 0 8px">Loading Chaos attacks…</div>
+    <div id="atk" aria-live="polite"></div>
   </aside>
 
 
@@ -185,7 +184,7 @@ async function poll() {
   render();
   if (!document.hidden) timer = setTimeout(poll, Math.min(POLL * 2 ** failed, 60000));   // back off after failures, pause when hidden
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(timer); poll(); loadWins(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(timer); poll(); } });
 
 async function history() {
   try {
@@ -223,30 +222,7 @@ $('#rows').onclick = e => {
 $('#list').setAttribute('aria-live', 'polite');
 $('.note').insertAdjacentHTML('beforebegin', '<h2>Last 24 hours</h2><div id="hist"></div>');
 $('.note').textContent += ' Tap ☆ to watch specific clans: with any watched, alerts only fire for those.';
-let winsLoading = false;
-async function loadWins() {
-  if (winsLoading || document.hidden) return;
-  winsLoading = true;
-  try {
-    const r = await fetch('/api/members', { signal: AbortSignal.timeout(TIMEOUT) });
-    if (!r.ok) throw new Error('Server returned ' + r.status);
-    const d = await r.json();
-    if (d.error || !Array.isArray(d.gains)) throw new Error(d.error || 'Invalid wins response');
-    const t = {};
-    d.gains.forEach(g => { (t[g.clan] ||= { gain: 0, n: 0 }); t[g.clan].gain += g.gain; t[g.clan].n++; });
-    const e = Object.entries(t).sort((a, b) => b[1].gain - a[1].gain);
-    $('#fclans').innerHTML = e.map(([c, v]) => '<div class="stat"><span>' + esc(c) + '</span><b style="color:#f5c542">+' + v.gain.toLocaleString() + '</b><span>' + v.n + ' win' + (v.n === 1 ? '' : 's') + '</span></div>').join('');
-    $('#wins').innerHTML = d.gains.length
-      ? d.gains.slice(0, 10).map(g => '<div class="card" style="border-color:var(--line);background:var(--card)"><div class="l"><div><b>' + esc(g.member) + '</b><div class="sub">' + esc(g.clan) + ' · ' + ago(d.now - g.at) + ' ago</div></div></div><div class="r"><div style="color:#f5c542;font-weight:600">+' + g.gain.toLocaleString() + ' rep</div></div></div>').join('')
-      : '<div class="empty">No wins in the last hour.</div>';
-  } catch {
-    if (!$('#wins').textContent.trim()) $('#wins').innerHTML = '<div class="empty">Could not load recent wins.</div>';
-  } finally {
-    winsLoading = false;
-  }
-}
-
-syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterval(history, 300000); setInterval(loadWins, 10000);
+syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 300000);
 </script>
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <style>
@@ -302,123 +278,107 @@ syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterv
   setInterval(check, 10000);
 })();
 </script>
-<style>.livetag{color:#ff4d5a;font-weight:700;letter-spacing:.04em}</style>
+<style>
+.atk{border-color:var(--line);background:var(--card)}
+.atk.live{border-color:#5a2a30;background:linear-gradient(90deg,rgba(255,77,90,.08),var(--card) 70%)}
+.livetag{color:#ff4d5a;font-weight:700;letter-spacing:.04em}
+.atk .g{color:#f5c542;font-weight:700;font-variant-numeric:tabular-nums}
+</style>
 <script>
 (function () {
-  const CLAN_IDS = [3];      // 3 = Chaos. Add approved clan IDs as needed.
+  const CLAN = 'Chaos', CLAN_ID = 3;
   const EVERY_MS = 5000;
-  const KEEP_MS = 90000;
-  const SRC = 'https://ninjazenshin.online/clan-ranking/members/';
-  const base = {}, ready = {};
-  let live = [], busy = false;
+  const MAX_GAP_MS = 15000;
+  const SHOW_MS = 3600e3;
+  const SRC = 'https://ninjazenshin.online/clan-ranking/members/' + CLAN_ID;
+
+  const box = document.getElementById('fights');
+  if (!box) return;
+  box.innerHTML = '<h2>Chaos attacks</h2><div class="sub" id="atk-count" style="margin:-4px 0 8px"></div><div id="atk" aria-live="polite"></div>';
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const age = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's'; };
+  const age = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : Math.floor(s / 3600) + 'h'; };
 
-  function render() {
-    const box = document.getElementById('livewins');
-    if (!box) return;
-    const now = Date.now();
-    live = live.filter(w => now - w.at < KEEP_MS);
-    box.innerHTML = live.map(w => '<div class="card" style="border-color:#5a2a30;background:linear-gradient(90deg,rgba(255,77,90,.08),var(--card) 70%)"><div class="l"><div><b>' + esc(w.member) + '</b><div class="sub">' + esc(w.clan) + ' · <span class="livetag">LIVE</span> · ' + age(now - w.at) + ' ago</div></div></div><div class="r"><div style="color:#f5c542;font-weight:600">+' + w.gain.toLocaleString() + ' rep</div></div></div>').join('');
-  }
+  const base = {};
+  let ready = false, lastOk = 0, busy = false;
+  let live = [];
+  let recorded = [];
 
   async function check() {
-    if (busy || document.hidden) return;
+    if (busy) return;
     busy = true;
     try {
-      const res = await Promise.all(CLAN_IDS.map(async id => {
-        const response = await fetch(SRC + id, { cache: 'no-store' });
-        if (!response.ok) throw new Error('Members request failed: ' + response.status);
-        return { id, d: await response.json() };
-      }));
-      const now = Date.now();
-      for (const { id, d } of res) {
-        const seen = new Set();
-        const members = (d.members || []).filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name));
-        const drops = members.filter(m => base[id + '|' + m.name] !== undefined && m.rep < base[id + '|' + m.name]).length;
-        const reset = drops > Math.max(3, members.length / 2);
-        for (const m of members) {
-          const k = id + '|' + m.name;
-          if (ready[id] && !reset && base[k] !== undefined && m.rep > base[k]) {
-            live.unshift({ at: now, clan: d.name, member: m.name, gain: m.rep - base[k] });
-          }
-          base[k] = m.rep;
+      const response = await fetch(SRC, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Members request failed: ' + response.status);
+      const d = await response.json();
+      if (!Array.isArray(d.members)) throw new Error('Invalid members response');
+      const now = Date.now(), seen = new Set();
+      const members = d.members.filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name));
+      const dropped = members.filter(m => base[m.name] !== undefined && m.rep < base[m.name]).length;
+      const reset = dropped > Math.max(3, members.length / 2);
+      const combined = lastOk > 0 && now - lastOk > MAX_GAP_MS;
+      for (const m of members) {
+        if (ready && !reset && base[m.name] !== undefined && m.rep > base[m.name]) {
+          live.unshift({ at: now, member: m.name, gain: m.rep - base[m.name], total: m.rep, combined, live: true });
         }
-        ready[id] = true;
+        base[m.name] = m.rep;
       }
-      live = live.slice(0, 12);
+      ready = true;
+      lastOk = now;
+      live = live.filter(a => now - a.at < SHOW_MS).slice(0, 60);
       render();
     } catch (e) {
-      // Blocked cross-origin requests or network errors leave the recorded feed untouched.
+      // Blocked or offline: the server-recorded list below still works.
     } finally {
       busy = false;
     }
   }
 
-  async function dedupe() {
-    if (!live.length) return;
+  async function loadRecorded() {
     try {
       const response = await fetch('/api/members', { cache: 'no-store' });
       if (!response.ok) return;
       const d = await response.json();
-      const snapshot = live.slice();
-      const matched = new Set();
-      const recorded = Array.isArray(d.gains) ? d.gains.slice().sort((a, b) => a.at - b.at) : [];
-
-      for (const s of recorded) {
-        const candidates = snapshot.filter(w =>
-          !matched.has(w) &&
-          s.clan === w.clan &&
-          s.member === w.member &&
-          Math.abs(s.at - w.at) <= 60000
-        );
-        let best = null;
-        let bestScore = Infinity;
-
-        // Prefer a single exact match.
-        for (const w of candidates) {
-          if (w.gain !== s.gain) continue;
-          const score = Math.abs(s.at - w.at);
-          if (score < bestScore) { best = [w]; bestScore = score; }
-        }
-
-        // One server poll can combine several browser-detected rep increases.
-        // Match a group of LIVE cards when their gains add up to the recorded total.
-        if (!best && candidates.length > 1) {
-          const limit = 1 << candidates.length;
-          for (let mask = 1; mask < limit; mask++) {
-            let total = 0, distance = 0, group = [];
-            for (let bit = 0; bit < candidates.length; bit++) {
-              if (mask & (1 << bit)) {
-                const w = candidates[bit];
-                total += w.gain;
-                distance += Math.abs(s.at - w.at);
-                group.push(w);
-              }
-            }
-            if (group.length > 1 && total === s.gain) {
-              const score = group.length * 1000000 + distance;
-              if (score < bestScore) { best = group; bestScore = score; }
-            }
-          }
-        }
-
-        if (best) best.forEach(w => matched.add(w));
-      }
-
-      live = live.filter(w => !matched.has(w));
+      if (d.error || !Array.isArray(d.gains)) return;
+      recorded = d.gains.filter(g => g.clan === CLAN);
       render();
     } catch (e) {}
   }
 
+  function covered(r) {
+    const sum = live.filter(a => a.member === r.member && a.at >= r.at - 75000 && a.at <= r.at + 5000).reduce((s, a) => s + a.gain, 0);
+    return sum >= r.gain;
+  }
+
+  function render() {
+    const now = Date.now();
+    live = live.filter(a => now - a.at < SHOW_MS);
+    const items = live
+      .concat(recorded.filter(r => !covered(r)).map(r => ({ at: r.at, member: r.member, gain: r.gain, total: r.total, combined: false, live: false })))
+      .sort((a, b) => b.at - a.at);
+    const count = document.getElementById('atk-count');
+    const list = document.getElementById('atk');
+    if (!count || !list) return;
+    count.textContent = items.length + ' attack' + (items.length === 1 ? '' : 's') + ' in the last hour';
+    list.innerHTML = items.length ? items.slice(0, 40).map(a => {
+      const cur = base[a.member] !== undefined ? base[a.member] : a.total;
+      const fresh = a.live && now - a.at < 90000;
+      return '<div class="card atk' + (fresh ? ' live' : '') + '"><div class="l"><div><b>' + esc(a.member) + '</b><div class="sub">' +
+        (fresh ? '<span class="livetag">LIVE</span> · ' : '') + age(now - a.at) + ' ago' + (a.combined ? ' · several attacks' : '') + '</div></div></div>' +
+        '<div class="r"><div class="g">+' + a.gain.toLocaleString() + '</div>' + (cur != null ? '<div class="sub">now ' + cur.toLocaleString() + '</div>' : '') + '</div></div>';
+    }).join('') : '<div class="empty">No Chaos attacks yet. This fills in as soon as a member wins.</div>';
+  }
+
   check();
+  loadRecorded();
   setInterval(check, EVERY_MS);
+  setInterval(loadRecorded, 15000);
   setInterval(render, 1000);
-  setInterval(dedupe, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 })();
 </script>
+
+
 
 </body>
 </html>
