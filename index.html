@@ -97,7 +97,15 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   </aside>
 
 
-  <h2>Clan ranking</h2>
+  <section id="chaos-members">
+  <h2>Chaos members</h2>
+  <div class="sub" id="cm-sub" style="margin:-4px 0 8px">Waiting for the shared game read…</div>
+  <div class="wrap cm-wrap"><table>
+    <thead><tr><th>#</th><th>Member</th><th class="hm">Lv</th><th class="n">Reputation</th><th class="n">Since opened</th></tr></thead>
+    <tbody id="cm-rows"></tbody>
+  </table></div>
+</section>
+<h2>Clan ranking</h2>
   <div class="tools">
     <input id="q" type="search" placeholder="Search clans" autocomplete="off">
     <button id="all" class="toggle">Show all clans</button>
@@ -311,6 +319,7 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
       const response = await fetch(SRC, { cache: 'no-store' });
       if (!response.ok) throw new Error('Members request failed: ' + response.status);
       const d = await response.json();
+      window.dispatchEvent(new CustomEvent('chaos-members', { detail: d }));
       if (!Array.isArray(d.members)) throw new Error('Invalid members response');
       const now = Date.now(), seen = new Set();
       const members = d.members.filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name));
@@ -380,5 +389,50 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 
 
 
+<style>
+.cm-wrap{max-height:420px}
+.mrow-up td{animation:mflash 1.6s ease}
+@keyframes mflash{from{background:rgba(245,197,66,.25)}to{background:transparent}}
+.gn{color:#f5c542}
+.gn.z{color:var(--mute)}
+</style>
+<script>
+(function () {
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const base = {}, prev = {};
+  const sub = document.getElementById("cm-sub");
+  const rows = document.getElementById("cm-rows");
+  if (!sub || !rows) return;
+  let got = false;
+  const waiting = setTimeout(() => {
+    if (!got) sub.textContent = "Still waiting for the game members list. Check the browser Console if this persists.";
+  }, 15000);
+
+  function render(d) {
+    if (!d || !Array.isArray(d.members)) return;
+    const seen = new Set();
+    const ms = d.members
+      .filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name))
+      .sort((a, b) => (b.rep || 0) - (a.rep || 0));
+    sub.textContent = (d.name || "Chaos") + " · " + ms.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString();
+    rows.innerHTML = ms.map((m, i) => {
+      if (base[m.name] === undefined) base[m.name] = m.rep;
+      const up = prev[m.name] !== undefined && m.rep > prev[m.name];
+      prev[m.name] = m.rep;
+      const g = m.rep - base[m.name];
+      return '<tr class="' + (up ? "mrow-up" : "") + '"><td class="k ' + (i < 3 ? "g" + (i + 1) : "") + '">' + (i + 1) + '</td>' +
+        '<td>' + esc(m.name) + '</td><td class="hm">' + (m.level || "-") + '</td>' +
+        '<td class="n">' + Number(m.rep || 0).toLocaleString() + '</td>' +
+        '<td class="n gn' + (g > 0 ? "" : " z") + '">' + (g > 0 ? "+" + g.toLocaleString() : "–") + '</td></tr>';
+    }).join("");
+  }
+
+  window.addEventListener("chaos-members", e => {
+    got = true;
+    clearTimeout(waiting);
+    render(e.detail);
+  });
+})();
+</script>
 </body>
 </html>
