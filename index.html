@@ -101,9 +101,10 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <h2>Chaos members</h2>
   <div class="sub" id="cm-sub" style="margin:-4px 0 8px">Waiting for the shared game read…</div>
   <div class="wrap cm-wrap"><table>
-    <thead><tr><th>#</th><th>Member</th><th class="hm">Lv</th><th class="n">Reputation</th><th class="n">Since opened</th></tr></thead>
+    <thead><tr><th>#</th><th>Member</th><th class="hm">Lv</th><th class="n">Reputation</th><th class="n">24h Gain</th><th class="n">7d Gain</th><th class="n">30d Gain</th></tr></thead>
     <tbody id="cm-rows"></tbody>
   </table></div>
+  <div class="note cm-history-note">Gain totals are calculated from saved events. Weekly and monthly totals will build as more history is retained.</div>
 </section>
 <h2>Clan ranking</h2>
   <div class="tools">
@@ -421,7 +422,9 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 
 
 <style>
-.cm-wrap{max-height:420px}\n#cm-sub.sync-stale{color:var(--accent)}
+.cm-wrap{max-height:420px}
+#cm-sub.sync-stale{color:var(--accent)}
+.cm-history-note{margin-top:8px}
 .mrow-up td{animation:mflash 1.6s ease}
 @keyframes mflash{from{background:rgba(245,197,66,.25)}to{background:transparent}}
 .gn{color:#f5c542}
@@ -430,14 +433,16 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 <script>
 (function () {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const base = {}, prev = {};
+  const prev = {};
   const sub = document.getElementById("cm-sub");
   const rows = document.getElementById("cm-rows");
   if (!sub || !rows) return;
   let got = false;
   const waiting = setTimeout(() => {
-    if (!got) sub.textContent = "Still waiting for the game members list. Check the browser Console if this persists.";
+    if (!got) sub.textContent = "Still waiting for the shared game members list. Check the browser Console if this persists.";
   }, 15000);
+
+  const formatGain = value => value > 0 ? "+" + value.toLocaleString() : "–";
 
   function render(d) {
     if (!d || !Array.isArray(d.members)) return;
@@ -445,20 +450,30 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
     const ms = d.members
       .filter(m => m.name && m.name.trim() && !seen.has(m.name) && seen.add(m.name))
       .sort((a, b) => (b.rep || 0) - (a.rep || 0));
+    const history = new Map(
+      (Array.isArray(d.member_history) ? d.member_history : [])
+        .map(item => [item.member, item])
+    );
+
     const snapshotAt = Number(d.snapshot_at) || 0;
     const ageSeconds = snapshotAt ? Math.max(0, Math.floor((Date.now() - snapshotAt) / 1000)) : null;
     const freshness = ageSeconds === null ? " · waiting for shared sync" : " · shared read " + ageSeconds + "s ago";
     sub.classList.toggle("sync-stale", ageSeconds === null || ageSeconds > 15 || !!d.sync_error);
     sub.textContent = (d.name || "Chaos") + " · " + ms.length + " members · clan rep " + Number(d.reputation || 0).toLocaleString() + freshness + (d.sync_error ? " · sync issue" : "");
+
     rows.innerHTML = ms.map((m, i) => {
-      if (base[m.name] === undefined) base[m.name] = m.rep;
+      const stats = history.get(m.name) || {};
+      const g24 = Number(stats.gain_24h) || 0;
+      const g7 = Number(stats.gain_7d) || 0;
+      const g30 = Number(stats.gain_30d) || 0;
       const up = prev[m.name] !== undefined && m.rep > prev[m.name];
       prev[m.name] = m.rep;
-      const g = m.rep - base[m.name];
       return '<tr class="' + (up ? "mrow-up" : "") + '"><td class="k ' + (i < 3 ? "g" + (i + 1) : "") + '">' + (i + 1) + '</td>' +
         '<td>' + esc(m.name) + '</td><td class="hm">' + (m.level || "-") + '</td>' +
         '<td class="n">' + Number(m.rep || 0).toLocaleString() + '</td>' +
-        '<td class="n gn' + (g > 0 ? "" : " z") + '">' + (g > 0 ? "+" + g.toLocaleString() : "–") + '</td></tr>';
+        '<td class="n gn' + (g24 > 0 ? "" : " z") + '">' + formatGain(g24) + '</td>' +
+        '<td class="n gn' + (g7 > 0 ? "" : " z") + '">' + formatGain(g7) + '</td>' +
+        '<td class="n gn' + (g30 > 0 ? "" : " z") + '">' + formatGain(g30) + '</td></tr>';
     }).join("");
   }
 
@@ -467,7 +482,6 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
     clearTimeout(waiting);
     render(e.detail);
   });
-})();
-</script>
+})();</script>
 </body>
 </html>
