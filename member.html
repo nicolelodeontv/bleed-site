@@ -37,6 +37,9 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin-top:6px}
 .legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--gold);margin-right:6px}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+.load-more-wrap{display:flex;justify-content:center;margin-top:12px}
+.load-more{font:inherit;font-size:12px;color:var(--gold);background:#171309;border:1px solid #51421f;border-radius:9px;padding:9px 14px;cursor:pointer}
+.load-more:disabled{opacity:.55;cursor:wait}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
 th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
@@ -88,6 +91,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <thead><tr><th>Recorded at · Manila</th><th class="num">Rep gained</th><th class="num">Resulting rep</th></tr></thead>
     <tbody id="event-rows"><tr><td colspan="3" class="empty">Loading recorded activity…</td></tr></tbody>
   </table></div>
+  <div class="load-more-wrap"><button class="load-more" id="load-older" type="button" hidden>Load older activity</button></div>
 </section>
 
 <div class="status"><span id="status-message" class="sub">Loading member activity…</span><span class="sub">History is retained for up to 30 days.</span></div>
@@ -100,7 +104,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const params = new URLSearchParams(location.search);
   const member = (params.get('name') || '').trim();
-  let data = null, watched = false;
+  let data = null, watched = false, loadingOlder = false;
 
   function dayKey(date) {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(date);
@@ -191,14 +195,49 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   function renderEvents() {
     const events = Array.isArray(data.events) ? data.events : [];
     $('event-summary').textContent = events.length
-      ? events.length + ' recent recorded change' + (events.length === 1 ? '' : 's')
+      ? (data.has_more ? 'Showing latest ' + events.length + ' recorded changes' : events.length + ' recorded change' + (events.length === 1 ? '' : 's'))
       : 'No recorded changes';
+    $('load-older').hidden = !data.has_more;
+    $('load-older').disabled = loadingOlder;
+    $('load-older').textContent = loadingOlder ? 'Loading…' : 'Load older activity';
     $('event-rows').innerHTML = events.length ? events.map(event =>
       '<tr><td>' + esc(eventDate(event.at)) + '</td><td class="num gain">+' + fmt(event.gain) +
       '</td><td class="num">' + (event.total == null ? '—' : fmt(event.total)) + '</td></tr>'
     ).join('') : '<tr><td colspan="3" class="empty">No reputation increases have been recorded for this member in the available history.</td></tr>';
-    if (events.length >= Number(data.event_limit || 200)) {
+    if (events.length >= Number(data.event_limit || 200) && data.has_more) {
       $('event-summary').textContent = 'Showing latest ' + data.event_limit + ' recorded changes';
+    }
+  }
+  async function loadOlder() {
+    if (!data || !data.has_more || loadingOlder) return;
+    const before = Number(data.next_before) || 0;
+    if (!before) {
+      data.has_more = false;
+      renderEvents();
+      return;
+    }
+    loadingOlder = true;
+    renderEvents();
+    try {
+      const response = await fetch('/api/member-activity?name=' + encodeURIComponent(member) + '&before=' + encodeURIComponent(before), {cache:'no-store'});
+      const next = await response.json();
+      if (!response.ok) throw new Error(next.error || 'Unable to load older activity.');
+      const seen = new Set(data.events.map(event => [event.at, event.gain, event.total].join('|')));
+      (Array.isArray(next.events) ? next.events : []).forEach(event => {
+        const key = [event.at, event.gain, event.total].join('|');
+        if (!seen.has(key)) {
+          seen.add(key);
+          data.events.push(event);
+        }
+      });
+      data.has_more = !!next.has_more && next.events.length > 0;
+      data.next_before = next.next_before;
+    } catch (error) {
+      $('status-message').textContent = error.message;
+      $('status-message').classList.add('error');
+    } finally {
+      loadingOlder = false;
+      renderEvents();
     }
   }
   async function load() {
@@ -230,6 +269,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       $('event-rows').innerHTML = '<tr><td colspan="3" class="empty error">' + esc(error.message) + '</td></tr>';
     }
   }
+  $('load-older').addEventListener('click', loadOlder);
   $('watch-button').addEventListener('click', () => {
     if (!member) return;
     try {
