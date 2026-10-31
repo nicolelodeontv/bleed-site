@@ -73,10 +73,14 @@ async function claimOtherPoll(now) {
 }
 
 async function claimChaosPoll(now) {
-  const claim = await fetch(REST + '/bleed_state?id=eq.1&chaos_checked_at=lt.' + (now - CHAOS_POLL_COOLDOWN), {
+  const claim = await fetch(REST + '/bleed_state?id=eq.1&chaos_checked_at=lt.' + (now - CHAOS_POLL_COOLDOWN) + '&chaos_polling_until=lt.' + now, {
     method: 'PATCH',
     headers: { ...H, Prefer: 'return=representation' },
-    body: JSON.stringify({ chaos_checked_at: now, chaos_sync_error: null }),
+    body: JSON.stringify({
+      chaos_checked_at: now,
+      chaos_polling_until: now + 12_000,
+      chaos_sync_error: null,
+    }),
   });
   if (!claim.ok) throw new Error('Supabase Chaos poll claim failed: ' + claim.status);
   const rows = await claim.json();
@@ -182,6 +186,15 @@ async function runChaosPoll(now) {
       });
     } catch {}
     return { error: message };
+  } finally {
+    // A short lease prevents overlapping game reads if the upstream is slow.
+    try {
+      await fetch(REST + '/bleed_state?id=eq.1', {
+        method: 'PATCH',
+        headers: { ...H, Prefer: 'return=minimal' },
+        body: JSON.stringify({ chaos_polling_until: 0 }),
+      });
+    } catch {}
   }
 }
 
