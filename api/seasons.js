@@ -54,10 +54,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [seasons, allStats, allMilestones] = await Promise.all([
+    const [seasons, allStats, allMilestones, allPersonalBests] = await Promise.all([
       read('/chaos_seasons?select=season_number,started_at,ended_at,status,start_reason,end_reason&order=season_number.desc&limit=100', 'Season history'),
       read('/chaos_season_member_stats?select=season_number,member,starting_rep,current_rep,season_gain,gain_events,active_days,last_gain_at,last_gain_day,current_streak_days,longest_streak_days,last_streak_day,updated_at&order=season_number.desc,season_gain.desc&limit=10000', 'Season member totals'),
       read('/chaos_season_milestones?select=id,season_number,member,milestone_key,milestone_value,milestone_title,metric_value,earned_at,is_major&order=season_number.desc,earned_at.desc&limit=20000', 'Season milestone totals'),
+      read('/chaos_personal_best_records?select=member,record_key,record_title,record_value,season_number&period_start,period_end,achieved_at&order=record_key.asc,record_value.desc&limit=10000', 'Personal best records'),
     ]);
 
     if (!Array.isArray(seasons) || !seasons.length) {
@@ -74,6 +75,19 @@ export default async function handler(req, res) {
       : seasons.find(season => Number(season.season_number) === requestedSeason);
 
     if (!selected) return res.status(404).json({ error: 'That season was not found.' });
+
+    const personalBestRows = Array.isArray(allPersonalBests) ? allPersonalBests : [];
+    const selectedPersonalBests = new Map();
+    for (const record of personalBestRows.filter(item =>
+      Number(item.season_number) === Number(selected.season_number)
+    )) {
+      if (!selectedPersonalBests.has(record.member)) selectedPersonalBests.set(record.member, []);
+      selectedPersonalBests.get(record.member).push({
+        record_key: record.record_key,
+        record_title: record.record_title,
+        record_value: Number(record.record_value || 0),
+      });
+    }
 
     const selectedMilestones = new Map();
     for (const row of milestoneRows.filter(item =>
@@ -100,6 +114,7 @@ export default async function handler(req, res) {
         current_streak_days: Number(row.current_streak_days || 0),
         longest_streak_days: Number(row.longest_streak_days || 0),
         milestones: selectedMilestones.get(row.member) || [],
+        records_held: selectedPersonalBests.get(row.member) || [],
         rank: index + 1,
       }));
 
@@ -120,6 +135,11 @@ export default async function handler(req, res) {
       milestone_totals: {
         unlocks: milestoneRows.length,
         major_unlocks: milestoneRows.filter(row => row.is_major).length,
+      },
+      personal_record_totals: {
+        records: personalBestRows.length,
+        holders: new Set(personalBestRows.map(row => row.member)).size,
+        selected_season_holders: selectedMembers.filter(row => row.records_held.length > 0).length,
       },
     });
   } catch (error) {
