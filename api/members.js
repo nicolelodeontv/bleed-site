@@ -160,6 +160,25 @@ async function pollChaos(now) {
   }
   const season = await seasonResponse.json();
 
+  // Store one current ranking snapshot per Manila calendar day. The database
+  // function only updates a day's rows when a member's rank or season metrics change.
+  let dailyRankings = null;
+  try {
+    const rankingResponse = await fetch(REST + '/rpc/record_chaos_daily_rankings', {
+      method: 'POST',
+      headers: H,
+      body: JSON.stringify({ p_now: now }),
+    });
+    if (rankingResponse.ok) {
+      dailyRankings = await rankingResponse.json();
+    } else {
+      console.error('Chaos daily ranking snapshot failed:', rankingResponse.status,
+        (await rankingResponse.text()).slice(0, 250));
+    }
+  } catch (error) {
+    console.error('Chaos daily ranking snapshot failed:', String(error && error.message || error).slice(0, 250));
+  }
+
   const snapshot = {
     name: String(source.name || 'Chaos'),
     reputation: Number(source.reputation) || 0,
@@ -176,7 +195,7 @@ async function pollChaos(now) {
   });
   if (!saved.ok) throw new Error('Supabase Chaos snapshot save failed: ' + saved.status);
 
-  return { members: members.length, gains: gains.length, reset, season };
+  return { members: members.length, gains: gains.length, reset, season, daily_rankings: dailyRankings };
 }
 
 async function runChaosPoll(now) {
