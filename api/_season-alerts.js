@@ -99,7 +99,7 @@ function makeDiscordPayload(alert) {
     }],
     // Discord checks a nonce for uniqueness over the past few minutes.
     // Reusing this season-specific nonce prevents a timed-out retry from posting twice.
-    nonce: 'season-rollover-' + season,
+    nonce: 'sr-' + season,
     enforce_nonce: true,
   };
 }
