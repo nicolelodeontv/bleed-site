@@ -136,6 +136,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div><strong>All-time personal bests</strong><div class="sub">Best saved season, day, and calendar-week performance</div></div>
     <div class="toolbar"><span class="sub" id="personal-record-note">Loading personal records…</span><button class="export-button" id="export-personal-records" type="button" disabled>↓ Export records CSV</button></div>
   </div>
+  <h2>Current season vs personal best</h2>
+  <div class="table-wrap"><table class="season-table">
+    <thead><tr><th>Performance</th><th class="num">Current season</th><th class="num">All-time personal best</th><th>Status</th></tr></thead>
+    <tbody id="current-record-rows"><tr><td colspan="4" class="empty">Loading current-season comparison…</td></tr></tbody>
+  </table></div>
+  <div class="season-notice">This compares saved current-season totals with the member's best recorded value across tracked seasons. It does not project future performance.</div>
+  <h2>All-time personal bests</h2>
   <div class="table-wrap"><table class="season-table">
     <thead><tr><th>Record</th><th class="num">Personal best</th><th>Season</th><th>Period / date</th></tr></thead>
     <tbody id="personal-record-rows"><tr><td colspan="4" class="empty">Loading personal records…</td></tr></tbody>
@@ -386,9 +393,58 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     if (row.achieved_at) return eventDate(row.achieved_at);
     return 'Date not recorded';
   }
+
+  function currentRecordValue(key, season) {
+    const value = Number(season && season[key] || 0);
+    if (key === 'active_days' || key === 'best_streak_days') return fmt(value) + ' days';
+    if (key === 'gain_events') return fmt(value) + ' increases';
+    return '+' + fmt(value) + ' rep';
+  }
+  function currentRecordGap(key, current, best) {
+    if (!best) return 'No previous record';
+    const gap = Math.max(0, Number(best.record_value || 0) - Number(current || 0));
+    if (!gap) return 'At / above personal best';
+    if (key === 'active_days' || key === 'longest_streak') return fmt(gap) + ' days to match';
+    if (key === 'gain_events') return fmt(gap) + ' increases to match';
+    return '+' + fmt(gap) + ' rep to match';
+  }
+  function renderCurrentRecordComparison() {
+    const season = recordsData && recordsData.current_season;
+    if (!season) {
+      $('current-record-rows').innerHTML = '<tr><td colspan="4" class="empty">No active season is currently available.</td></tr>';
+      return;
+    }
+    const currentValues = {
+      season_gain: season.season_gain,
+      active_days: season.active_days,
+      longest_streak: season.best_streak_days,
+      gain_events: season.gain_events,
+      best_day_gain: season.best_day_gain,
+      best_week_gain: season.best_week_gain,
+    };
+    const lookup = new Map((recordsData.records || []).map(row => [row.record_key,row]));
+    const keys = [
+      ['season_gain','Highest Season Gain'],
+      ['active_days','Most Active Days'],
+      ['longest_streak','Longest Active Streak'],
+      ['gain_events','Most Recorded Increases'],
+      ['best_day_gain','Best Single-Day Gain'],
+      ['best_week_gain','Best Calendar-Week Gain'],
+    ];
+    $('current-record-rows').innerHTML = keys.map(([key,label]) => {
+      const current = Number(currentValues[key] || 0);
+      const best = lookup.get(key) || null;
+      return '<tr><td>' + esc(label) + '</td>' +
+        '<td class="num">' + esc(currentRecordValue(key, { [key === 'longest_streak' ? 'best_streak_days' : key]: current })) + '</td>' +
+        '<td class="num gain">' + (best ? esc(recordValue(best)) : '—') + '</td>' +
+        '<td>' + esc(currentRecordGap(key,current,best)) + '</td></tr>';
+    }).join('');
+  }
+
   function renderPersonalRecords() {
     if (!recordsData) return;
     const rows = recordsData.records || [];
+    renderCurrentRecordComparison();
     $('personal-record-rows').innerHTML = rows.length ? rows.map(row =>
       '<tr><td>' + esc(recordTitles[row.record_key] || row.record_title) + '</td>' +
       '<td class="num gain">' + esc(recordValue(row)) + '</td>' +
