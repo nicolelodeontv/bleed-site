@@ -101,8 +101,8 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 <section class="panel">
   <div class="panel-head"><div><strong>Member season performance</strong><div class="sub">Ranked by reputation gained within the selected season</div></div><span class="sub" id="leaderboard-count"></span></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>#</th><th>Member</th><th class="num">Starting rep</th><th class="num">Current rep</th><th class="num">Season gain</th><th class="num">Gain events</th><th class="num">Active days</th><th class="num">Best streak</th><th>Milestones</th><th>Last gain · Manila</th></tr></thead>
-    <tbody id="leaderboard-rows"><tr><td colspan="10" class="empty">Loading season leaderboard…</td></tr></tbody>
+    <thead><tr><th>#</th><th>Member</th><th class="num">Starting rep</th><th class="num">Current rep</th><th class="num">Season gain</th><th class="num">Gain events</th><th class="num">Active days</th><th class="num">Best streak</th><th>Milestones</th><th>Personal bests</th><th>Last gain · Manila</th></tr></thead>
+    <tbody id="leaderboard-rows"><tr><td colspan="11" class="empty">Loading season leaderboard…</td></tr></tbody>
   </table></div>
   <div class="note">Active days count unique Manila calendar days with at least one recorded gain. Best streak is consecutive calendar days with a recorded increase. Gain events are changes detected between shared game reads, not guaranteed individual fights. <a href="/milestones.html">Open live milestone progress →</a></div>
 </section>
@@ -161,11 +161,12 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     if (!data || !data.members.length) return;
     const season = data.selected_season;
     const rows = [
-      ['Rank','Season','Member','Starting reputation','Current reputation','Season gain','Gain events','Active days','Best streak days','Milestones earned','Last gain timestamp (Asia/Manila)'],
+      ['Rank','Season','Member','Starting reputation','Current reputation','Season gain','Gain events','Active days','Best streak days','Milestones earned','Personal bests held','Last gain timestamp (Asia/Manila)'],
       ...data.members.map(row=>[
         row.rank,season.season_number,row.member,row.starting_rep,row.current_rep,row.season_gain,row.gain_events,row.active_days,
         row.longest_streak_days || 0,
         (row.milestones || []).map(item => item.milestone_title).join('; '),
+        (row.records_held || []).map(item => item.record_title).join('; '),
         row.last_gain_at ? dateTime(row.last_gain_at) : ''
       ])
     ];
@@ -216,8 +217,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         ? '<div class="badges">' + row.milestones.map(item =>
             '<a class="badge" href="/milestones.html#season-' + data.selected_season.season_number + '">🎖️ ' + esc(item.milestone_title) + '</a>'
           ).join('') + '</div>'
+        : '—') + '</td>' +
+      '<td>' + ((row.records_held || []).length
+        ? '<div class="badges">' + row.records_held.map(record =>
+            '<a class="badge" href="/records.html">🏆 ' + esc(record.record_title) + '</a>'
+          ).join('') + '</div>'
         : '—') + '</td><td>' + (row.last_gain_at ? esc(dateTime(row.last_gain_at)) : '—') + '</td></tr>'
-    ).join('') : '<tr><td colspan="10" class="empty">No member baselines are available for this season yet.</td></tr>';
+    ).join('') : '<tr><td colspan="11" class="empty">No member baselines are available for this season yet.</td></tr>';
   }
   function renderHistory() {
     $('season-history-count').textContent = data.seasons.length + ' recorded season' + (data.seasons.length===1?'':'s');
@@ -254,7 +260,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     } catch(error) {
       $('status-message').textContent = error.message;
       $('status-message').classList.add('error');
-      if (!data) $('leaderboard-rows').innerHTML = '<tr><td colspan="10" class="empty error">Unable to load season history.</td></tr>';
+      if (!data) $('leaderboard-rows').innerHTML = '<tr><td colspan="11" class="empty error">Unable to load season history.</td></tr>';
     } finally { busy = false; }
   }
 
