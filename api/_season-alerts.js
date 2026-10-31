@@ -62,7 +62,7 @@ function makeDiscordPayload(alert) {
         const unit = award.award_key === 'most_active' || award.award_key === 'consistency'
           ? ' days'
           : award.award_key === 'most_recorded_increases' ? ' recorded increases' : ' rep';
-        const visibleWinners = winners.slice(0, 3).map(winner => safeText(winner.member));
+        const visibleWinners = winners.slice(0, 2).map(winner => safeText(winner.member).slice(0, 40));
         if (winners.length > visibleWinners.length) {
           visibleWinners.push('+' + (winners.length - visibleWinners.length) + ' more in Hall of Fame');
         }
