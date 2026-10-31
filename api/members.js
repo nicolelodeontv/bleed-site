@@ -12,7 +12,7 @@ const CHAOS_ID = 3;
 // Chaos is polled separately at 5 seconds; avoid racing its member_rep rows here.
 const IDS = (TRACK_CLANS || '3,2,6,36,24').split(',').map(s => s.trim()).filter(Boolean);
 const OTHER_IDS = IDS.filter(id => Number(id) !== CHAOS_ID);
-const KEEP = 24 * 3600e3;
+const KEEP = 30 * 24 * 3600e3;
 const POLL_COOLDOWN = 20_000;
 const CHAOS_POLL_COOLDOWN = 5_000;
 
@@ -199,14 +199,17 @@ async function runChaosPoll(now) {
 }
 
 async function readSharedFeed(now) {
-  const [stateResponse, gainsResponse] = await Promise.all([
+  const [stateResponse, gainsResponse, historyResponse] = await Promise.all([
     fetch(REST + '/bleed_state?id=eq.1&select=chaos_snapshot,chaos_snapshot_at,chaos_sync_error', { headers: H }),
     fetch(REST + '/rep_gains?at=gte.' + (now - 3600e3) + '&order=at.desc&limit=300&select=at,clan,member,gain,total', { headers: H }),
+    fetch(REST + '/chaos_member_gain_stats?select=member,gain_24h,gain_7d,gain_30d,last_gain_at&order=gain_7d.desc', { headers: H }),
   ]);
   if (!stateResponse.ok) throw new Error('Supabase shared snapshot read failed: ' + stateResponse.status);
   if (!gainsResponse.ok) throw new Error('Supabase gains read failed: ' + gainsResponse.status);
-  const rows = await stateResponse.json();
-  const gains = await gainsResponse.json();
+  if (!historyResponse.ok) throw new Error('Supabase member history read failed: ' + historyResponse.status);
+  const [rows, gains, member_history] = await Promise.all([
+    stateResponse.json(), gainsResponse.json(), historyResponse.json(),
+  ]);
   const state = rows[0] || {};
   const snapshot = state.chaos_snapshot && typeof state.chaos_snapshot === 'object' ? state.chaos_snapshot : {};
   return {
@@ -217,6 +220,7 @@ async function readSharedFeed(now) {
     sync_error: state.chaos_sync_error || null,
     now: Date.now(),
     gains,
+    member_history: Array.isArray(member_history) ? member_history : [],
   };
 }
 
