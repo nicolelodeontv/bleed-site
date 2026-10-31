@@ -121,7 +121,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   const $ = id => document.getElementById(id);
   const fmt = value => Number(value || 0).toLocaleString();
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let data = null, selectedSeason = null, busy = false;
+  let data = null, selectedSeason = null, busy = false, followActive = true;
 
   function dateTime(value) {
     if (!value) return '—';
@@ -246,15 +246,24 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     } finally { busy = false; }
   }
 
-  $('season-select').addEventListener('change',event=>load(Number(event.target.value)));
+  $('season-select').addEventListener('change',event=>{
+    const chosen = Number(event.target.value);
+    followActive = !!data && chosen === Number(data.active_season_number);
+    load(chosen);
+  });
   $('season-history-rows').addEventListener('click',event=>{
     const button=event.target.closest('[data-season]');
-    if(button) load(Number(button.dataset.season));
+    if(button) {
+      const chosen = Number(button.dataset.season);
+      followActive = !!data && chosen === Number(data.active_season_number);
+      load(chosen);
+    }
   });
   $('export-season').addEventListener('click',exportSeason);
   const initial = new URLSearchParams(location.search).get('season');
+  followActive = !(initial && /^\d+$/.test(initial));
   load(initial && /^\d+$/.test(initial) ? Number(initial) : null);
-  setInterval(()=>load(selectedSeason),60000);
+  setInterval(()=>load(followActive ? null : selectedSeason),60000);
 })();
 </script>
 </body>
