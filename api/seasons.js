@@ -430,13 +430,16 @@ async function handleSeasonAnalytics(req, res) {
       limit: '1000',
     });
 
+    const reportWeekStart = analyticsWeekStart(today);
+    const reportWeekEnd = analyticsAddDays(today, 1);
     const recordQuery = new URLSearchParams({
       select: 'member,record_key,record_title,record_value,season_number,achieved_at',
       season_number: 'eq.' + seasonNumber,
-      achieved_at: 'gte.' + Date.parse(today + 'T00:00:00+08:00'),
+      achieved_at: 'gte.' + Date.parse(reportWeekStart + 'T00:00:00+08:00'),
       order: 'achieved_at.desc',
       limit: '1000',
     });
+    recordQuery.append('achieved_at', 'lt.' + Date.parse(reportWeekEnd + 'T00:00:00+08:00'));
     const [dailyResult, rankingResult, statsResult, recordResult] = await Promise.all([
       read('/chaos_season_daily_stats?' + dailyQuery.toString(), 'Daily season analytics'),
       read('/chaos_season_daily_rankings?' + rankingQuery.toString(), 'Daily leaderboard snapshots'),
@@ -474,15 +477,31 @@ async function handleSeasonAnalytics(req, res) {
       memberDayMap.set(row.member + '|' + date, { gain, events });
     }
 
-    const dailyTotals = Array.from(dayMap.values())
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .map(row => ({
-        date: row.date, gain: row.gain, events: row.events,
-        active_members: row.active_members.size,
-      }));
-    const coverageDates = dailyTotals.map(row => row.date);
-    const dailyFirst = coverageDates[0] || null;
-    const dailyLast = coverageDates[coverageDates.length - 1] || null;
+    const rankingDates = Array.from(new Set(rankingRows.map(row =>
+      analyticsDate(row.snapshot_date)
+    ))).filter(Boolean).sort();
+    const rankingDateSet = new Set(rankingDates);
+    const coverageDates = Array.from(new Set([
+      ...rankingDates,
+      ...Array.from(dayMap.keys()),
+    ])).sort();
+    const dailyTotals = coverageDates.map(date => {
+      const row = dayMap.get(date);
+      return {
+        date,
+        gain: row ? row.gain : 0,
+        events: row ? row.events : 0,
+        active_members: row ? row.active_members.size : 0,
+        snapshot_saved: rankingDateSet.has(date),
+      };
+    });
+    const dailyFirst = rankingDates[0] || null;
+    const dailyLast = rankingDates[rankingDates.length - 1] || null;
+    function hasTrackedDates(start, end) {
+      const expected = [];
+      for (let date = start; date <= end; date = analyticsAddDays(date, 1)) expected.push(date);
+      return expected.length > 0 && expected.every(date => rankingDateSet.has(date));
+    }
 
     const heatmapStart = analyticsAddDays(today, -55);
     const heatmapDates = Array.from({length:56}, (_,i) => analyticsAddDays(heatmapStart, i));
@@ -503,7 +522,7 @@ async function handleSeasonAnalytics(req, res) {
     const previousWeekEnd = analyticsAddDays(currentWeekStart, -1);
     const currentWeek = analyticsBuildWeek(dailyRows, currentWeekStart, today);
     const previousWeek = analyticsBuildWeek(dailyRows, previousWeekStart, previousWeekEnd);
-    const weeklyHistoryReady = !!dailyFirst && dailyFirst <= previousWeekStart;
+    const weeklyHistoryReady = hasTrackedDates(previousWeekStart, previousWeekEnd);
     const currentWeekMembers = currentWeek.member_gains;
     const previousWeekMembers = previousWeek.member_gains;
     delete currentWeek.member_gains;
@@ -529,7 +548,7 @@ async function handleSeasonAnalytics(req, res) {
       achieved_at: Number(row.achieved_at || 0),
     })).filter(row => row.achieved_at > 0);
 
-    const momentumReady = !!dailyFirst && dailyFirst <= analyticsAddDays(today, -13);
+    const momentumReady = hasTrackedDates(analyticsAddDays(today, -13), today);
     const momentum = statsRows.map(row => {
       const currentGain = dailyRows.filter(item =>
         item.member === row.member &&
@@ -619,7 +638,8 @@ async function handleSeasonAnalytics(req, res) {
       })),
       summary: {
         total_gain_tracked: cumulativeGain,
-        tracked_days: coverageDates.length,
+        tracked_days: rankingDates.length,
+        days_with_gains: Array.from(dayMap.keys()).length,
         first_tracked_day: dailyFirst,
         last_tracked_day: dailyLast,
         active_members: new Set(dailyRows.map(row => row.member)).size,
@@ -664,7 +684,7 @@ async function handleSeasonAnalytics(req, res) {
           ? 'Rank changes compare the latest saved daily snapshot with the latest snapshot on or before seven days earlier.'
           : 'Rank movement becomes available after at least eight calendar days of daily rank snapshots.',
       },
-      daily_tracking_note: 'Daily totals begin with the durable daily ledger. Rank history begins with the first successful daily snapshot. Earlier event history is not presented as complete daily history.',
+      daily_tracking_note: 'Zero-gain days are included only when a daily ranking snapshot confirms that the tracker ran. Daily totals and rank history begin with the first saved snapshot; earlier event history is not presented as complete daily history.',
     });
   } catch (error) {
     return res.status(502).json({
