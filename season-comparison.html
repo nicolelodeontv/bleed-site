@@ -264,7 +264,7 @@ select{min-width:145px}
     try {
       const params = new URLSearchParams();
       if (a && b) { params.set('season_a', a); params.set('season_b', b); }
-      const response = await fetch('/api/seasons?view=comparison' + (params.size ? '?' + params.toString() : ''), {cache:'no-store'});
+      const response = await fetch('/api/seasons?view=comparison' + (params.toString() ? '&' + params.toString() : ''), {cache:'no-store'});
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Season comparison request failed (' + response.status + ')');
       data = body;
