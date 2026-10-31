@@ -1,3 +1,5 @@
+import { dispatchSeasonRolloverAlert } from './_season-alerts.js';
+
 // api/members.js
 // Shared member feed: one server-side Chaos game read every 5 seconds for all visitors.
 // The other tracked clans retain their existing 20-second shared poll.
@@ -179,7 +181,16 @@ async function pollChaos(now) {
 
 async function runChaosPoll(now) {
   try {
-    return await pollChaos(now);
+    const result = await pollChaos(now);
+    // Retry any pending season rollover announcement after every successful shared poll.
+    // Discord failures are isolated from the member snapshot and the five-second poll.
+    try {
+      const alert = await dispatchSeasonRolloverAlert();
+      if (alert && alert.status !== 'idle') result.season_alert = alert;
+    } catch (e) {
+      console.error('Season rollover dispatch failed:', String(e && e.message || e).slice(0, 300));
+    }
+    return result;
   } catch (e) {
     const message = String(e && e.message || e).slice(0, 400);
     try {
