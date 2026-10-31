@@ -165,12 +165,12 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   }
   function loadSelection() {
     const available = new Set(rankedMembers().map(member => member.name));
-    let saved = [];
+    let saved = null;
     try {
       const raw = JSON.parse(localStorage.getItem('compareMembers') || 'null');
       if (Array.isArray(raw)) saved = raw.filter(name => typeof name === 'string' && available.has(name)).slice(0,4);
     } catch {}
-    selected = saved.length ? saved : rankedMembers().slice(0,4).map(member => member.name);
+    selected = saved !== null ? saved : rankedMembers().slice(0,4).map(member => member.name);
     saveSelection();
   }
   function saveSelection() {
