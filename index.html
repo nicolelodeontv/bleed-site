@@ -17,7 +17,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 h1{margin:0;font-size:22px;letter-spacing:-.01em;line-height:1.2}
 .sub{color:var(--mute);font-size:13px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px;color:var(--mute)}
-.activity-link{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid #51421f;border-radius:999px;background:#171309;color:#f5c542;font-size:12px;text-decoration:none}.activity-link:hover{border-color:#8a6a27;text-decoration:none}
+.activity-link,.compare-link{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid #51421f;border-radius:999px;background:#171309;color:#f5c542;font-size:12px;text-decoration:none}.activity-link:hover,.compare-link:hover{border-color:#8a6a27;text-decoration:none}
 .dot{width:8px;height:8px;border-radius:50%;background:#3ecf8e;animation:ok 2s infinite}
 .err .dot{background:var(--accent);animation:none}
 @keyframes ok{70%{box-shadow:0 0 0 7px rgba(62,207,142,0)}0%{box-shadow:0 0 0 0 rgba(62,207,142,.6)}}
@@ -74,6 +74,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
     <div class="brand"><div class="mark">🩸</div><div><h1>Clan Bleed Watch</h1><div class="sub">Live clan war reputation tracker</div></div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <a class="activity-link" href="/activity.html">📈 Member Activity</a>
+      <a class="compare-link" href="/compare.html">📊 Compare Members</a>
       <div class="pill" id="status"><span class="dot"></span>Connecting…</div>
     </div>
   </header>
