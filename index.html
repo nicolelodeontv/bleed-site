@@ -245,7 +245,7 @@ async function loadWins() {
   }
 }
 
-syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterval(history, 300000); setInterval(loadWins, 15000);
+syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterval(history, 300000); setInterval(loadWins, 10000);
 </script>
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <style>
@@ -298,7 +298,7 @@ syncButtons(); poll(); history(); loadWins(); setInterval(tick, 1000); setInterv
     finally { checking = false; }
   }
   check();
-  setInterval(check, 15000);
+  setInterval(check, 10000);
 })();
 </script>
 </body>
