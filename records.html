@@ -163,7 +163,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
  function render(){
    $('category-count').textContent=fmt(data.records.length);
    $('record-count').textContent=fmt(data.records.reduce((n,row)=>n+row.holder_count,0));
-   $('member-count').textContent=fmt(data.most_decorated.length);
+   $('member-count').textContent=fmt(data.member_count || data.most_decorated.length);
    $('daily-count').textContent=fmt(data.daily_tracking.rows);
    $('daily-coverage').textContent=data.daily_tracking.coverage_start
      ? date(data.daily_tracking.coverage_start)+' – '+date(data.daily_tracking.coverage_end)
