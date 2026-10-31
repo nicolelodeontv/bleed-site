@@ -49,12 +49,19 @@ export default async function handler(req, res) {
       order: 'season_number.desc,award_key.asc',
       limit: '1000',
     });
+    const milestonesQuery = new URLSearchParams({
+      select: 'id,season_number,member,milestone_key,milestone_value,milestone_title,metric_value,earned_at,is_major',
+      member: 'eq.' + name,
+      order: 'season_number.desc,earned_at.desc',
+      limit: '5000',
+    });
 
-    const [seasons, memberRows, rankingRows, awardRows] = await Promise.all([
+    const [seasons, memberRows, rankingRows, awardRows, milestoneRows] = await Promise.all([
       read('/chaos_seasons?' + seasonsQuery.toString(), 'Season history'),
       read('/chaos_season_member_stats?' + memberQuery.toString(), 'Member season history'),
       read('/chaos_season_member_stats?' + rankingsQuery.toString(), 'Season ranking totals'),
       read('/chaos_season_awards?' + awardsQuery.toString(), 'Member season awards'),
+      read('/chaos_season_milestones?' + milestonesQuery.toString(), 'Member season milestones'),
     ]);
 
     if (!Array.isArray(seasons) || !seasons.length) {
@@ -87,6 +94,21 @@ export default async function handler(req, res) {
       });
     }
 
+    const memberMilestones = new Map();
+    for (const milestone of Array.isArray(milestoneRows) ? milestoneRows : []) {
+      const number = Number(milestone.season_number);
+      if (!memberMilestones.has(number)) memberMilestones.set(number, []);
+      memberMilestones.get(number).push({
+        id: Number(milestone.id),
+        milestone_key: milestone.milestone_key,
+        milestone_value: Number(milestone.milestone_value || 0),
+        milestone_title: milestone.milestone_title,
+        metric_value: Number(milestone.metric_value || 0),
+        earned_at: Number(milestone.earned_at || 0),
+        is_major: !!milestone.is_major,
+      });
+    }
+
     const history = seasons.map(season => {
       const number = Number(season.season_number);
       const own = ownRows.get(number) || null;
@@ -115,6 +137,7 @@ export default async function handler(req, res) {
         last_gain_at: own && own.last_gain_at != null ? Number(own.last_gain_at) : null,
         longest_streak_days: own ? Number(own.longest_streak_days || 0) : null,
         awards: memberAwards.get(number) || [],
+        milestones: memberMilestones.get(number) || [],
       };
     });
 
@@ -144,6 +167,9 @@ export default async function handler(req, res) {
       active_season_tracked: !!currentTracked,
       previous_recorded_gain: previousRecorded ? previousRecorded.season_gain : null,
       current_vs_previous_gain: previousGainDelta,
+      total_milestones: history.reduce((sum,row) => sum + row.milestones.length, 0),
+      major_milestones: history.reduce((sum,row) =>
+        sum + row.milestones.filter(milestone => milestone.is_major).length, 0),
       history,
     });
   } catch (error) {
