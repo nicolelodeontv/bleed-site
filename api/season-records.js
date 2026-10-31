@@ -133,6 +133,7 @@ export default async function handler(req, res) {
       timezone: 'Asia/Manila',
       active_season_number: active ? Number(active.season_number) : null,
       records,
+      member_count: decorated.size,
       most_decorated: mostDecorated,
       recent_daily_records: recentDays,
       daily_tracking: {
