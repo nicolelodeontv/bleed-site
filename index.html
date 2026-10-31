@@ -240,19 +240,65 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 .toast b{display:block;font-size:14px}
 .toast small{color:#8b8b98;font-size:12px}
 .toast .g{color:#f5c542;font-weight:700;white-space:nowrap}
+.toast.rep-toast{border-color:#5a4922;background:linear-gradient(110deg,rgba(245,197,66,.1),#14141a 68%)}
+.toast .rep-tag{color:#f5c542;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
 @keyframes tin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
 @keyframes tout{to{opacity:0;transform:translateX(30px)}}
 </style>
 <script>
 (function () {
   const seen = new Set();
+  const shownRep = new Set();
+  const liveRepAt = new Map(), serverRepAt = new Map();
   let first = true, checking = false;
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }));
+  function repToast(g, source) {
+    const box = document.getElementById('toasts');
+    const member = String(g.member || 'Unknown');
+    const gain = Number(g.gain);
+    const total = g.total == null ? null : Number(g.total);
+    if (!box || !Number.isFinite(gain) || gain <= 0 || (total !== null && !Number.isFinite(total))) return;
+    const now = Date.now();
+    const key = [member, gain, total].join('|');
+    if (shownRep.has(key)) return;
+    if (source === 'server') {
+      const lastLive = liveRepAt.get(member);
+      if (lastLive && now - lastLive < 90000) return;
+      serverRepAt.set(member, { at: now, total });
+    } else {
+      const lastServer = serverRepAt.get(member);
+      if (lastServer && now - lastServer.at < 15000 &&
+          (total === null || lastServer.total === null || total <= lastServer.total)) return;
+      liveRepAt.set(member, now);
+    }
+    shownRep.add(key);
+    if (shownRep.size > 600) shownRep.delete(shownRep.values().next().value);
+    for (const [name, at] of liveRepAt) if (now - at > 120000) liveRepAt.delete(name);
+    for (const [name, item] of serverRepAt) if (now - item.at > 120000) serverRepAt.delete(name);
+
+    const el = document.createElement('div');
+    el.className = 'toast rep-toast';
+    const current = total === null ? 'Current reputation unavailable' : 'Current reputation: ' + total.toLocaleString();
+    el.innerHTML = '<div><small class="rep-tag">REP GAINED</small><b>' + esc(member) + '</b><small>' + esc(current) + '</small></div><div class="g">+' + gain.toLocaleString() + ' rep</div>';
+    const close = () => {
+      if (!el.isConnected || el.classList.contains('out')) return;
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 300);
+    };
+    el.onclick = close;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(close, 5000);
+  }
   function toast(g) {
+    if (g.clan === 'Chaos') {
+      repToast(g, 'server');
+      return;
+    }
     const box = document.getElementById('toasts');
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = '<div><b>' + esc(g.member) + '</b><small>' + esc(g.clan) + ' won a fight</small></div><div class="g">+' + g.gain.toLocaleString() + '</div>';
+    el.innerHTML = '<div><b>' + esc(g.member) + '</b><small>' + esc(g.clan) + ' won a fight</small></div><div class="g">+' + Number(g.gain).toLocaleString() + '</div>';
     const close = () => {
       if (!el.isConnected || el.classList.contains('out')) return;
       el.classList.add('out');
@@ -263,6 +309,7 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
     while (box.children.length > 4) box.firstChild.remove();
     setTimeout(close, 8000);
   }
+  window.addEventListener('chaos-rep-gain', event => repToast(event.detail || {}, 'live'));
   async function check() {
     if (checking) return;
     checking = true;
@@ -328,7 +375,11 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
       const combined = lastOk > 0 && now - lastOk > MAX_GAP_MS;
       for (const m of members) {
         if (ready && !reset && base[m.name] !== undefined && m.rep > base[m.name]) {
-          live.unshift({ at: now, member: m.name, gain: m.rep - base[m.name], total: m.rep, combined, live: true });
+          const gain = m.rep - base[m.name];
+          live.unshift({ at: now, member: m.name, gain, total: m.rep, combined, live: true });
+          window.dispatchEvent(new CustomEvent('chaos-rep-gain', {
+            detail: { clan: CLAN, member: m.name, gain, total: m.rep, at: now }
+          }));
         }
         base[m.name] = m.rep;
       }
