@@ -62,7 +62,11 @@ function makeDiscordPayload(alert) {
         const unit = award.award_key === 'most_active' || award.award_key === 'consistency'
           ? ' days'
           : award.award_key === 'most_recorded_increases' ? ' recorded increases' : ' rep';
-        const names = winners.map(winner => safeText(winner.member)).join(', ');
+        const visibleWinners = winners.slice(0, 3).map(winner => safeText(winner.member));
+        if (winners.length > visibleWinners.length) {
+          visibleWinners.push('+' + (winners.length - visibleWinners.length) + ' more in Hall of Fame');
+        }
+        const names = visibleWinners.join(', ');
         return '**' + safeText(award.award_title) + '** · ' + names + ' · **' + metric + unit + '**';
       }).join('\\n')
     : 'No award met the positive-activity requirements in the previous tracked season.';
