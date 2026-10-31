@@ -59,7 +59,7 @@ tbody tr:last-child td{border-bottom:0}
 .week-card .wk-total{font-size:22px;font-weight:800;margin:3px 0}
 .week-card .wk-meta{font-size:11px;color:var(--muted)}
 .week-list{list-style:none;margin:12px 0 0;padding:0}
-.week-list li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.055);font-size:12px}
+.week-list li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.055);font-size:12px}\n.week-extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.week-extra{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px}.week-extra h3{font-size:12px;margin:0 0 5px}.week-extra .week-list{margin-top:4px}
 .week-list b{font-variant-numeric:tabular-nums;color:var(--gold)}
 .empty{color:var(--muted);text-align:center;padding:22px 8px;font-size:12px}
 .actions{display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px}
@@ -101,7 +101,7 @@ tbody tr:last-child td{border-bottom:0}
         <div class="week-card"><div class="wk-label">CURRENT WEEK</div><div class="wk-total" id="current-week-total">—</div><div class="wk-meta" id="current-week-meta">—</div><ul class="week-list" id="current-week-list"></ul></div>
         <div class="week-card"><div class="wk-label">PREVIOUS WEEK</div><div class="wk-total" id="previous-week-total">—</div><div class="wk-meta" id="previous-week-meta">—</div><ul class="week-list" id="previous-week-list"></ul></div>
       </div>
-      <div class="note" id="weekly-note">Weekly summaries use the daily ledger only.</div>
+      <div class="week-extras"><div class="week-extra"><h3>Most active members</h3><ul class="week-list" id="most-active-list"><li class="empty">—</li></ul></div><div class="week-extra"><h3>Biggest improvements</h3><ul class="week-list" id="improvements-list"><li class="empty">—</li></ul></div><div class="week-extra"><h3>Personal records this week</h3><ul class="week-list" id="records-list"><li class="empty">—</li></ul></div></div><div class="note" id="weekly-note">Weekly summaries use the daily ledger only.</div>
     </section>
     <section class="panel full">
       <h2>Activity heatmap</h2><p class="desc">Daily reputation gained by member over the most recent 56 Manila calendar days. Dark cells indicate no recorded gain.</p>
