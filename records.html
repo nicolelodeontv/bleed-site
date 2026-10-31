@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Season Records · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--gold:#f5c542;--green:#3ecf8e}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.10),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1180px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a2110,#100d07);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:13px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:15px}
+.stat{background:#0b0b0f;border:1px solid var(--line);border-radius:13px;padding:13px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums;margin-top:3px}
+.stat small{font-size:11px;color:var(--mute)}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:28px 0 10px;font-weight:700}
+.panel h2{margin:0}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--mute);font-size:11px}
+.pill.current{color:var(--green);border-color:#24533d;background:#0c1812}
+.record-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.record-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.record-heading{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.record-title{font-weight:750;font-size:14px}
+.record-desc{font-size:11px;color:var(--mute);margin-top:3px}
+.record-value{font-size:21px;font-weight:850;color:var(--gold);margin:12px 0 3px;font-variant-numeric:tabular-nums}
+.holder{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:8px 0;border-top:1px solid var(--line)}
+.holder:first-child{border-top:0}
+.holder-name{font-weight:700;overflow-wrap:anywhere}
+.holder-meta{font-size:10px;color:var(--mute)}
+.holder-value{font-weight:750;color:var(--gold);white-space:nowrap;font-variant-numeric:tabular-nums}
+.empty{padding:24px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
+.tables{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.gain{color:var(--gold);font-weight:700}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+.status{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}
+.error{color:#ff7b84}
+.two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+@media(max-width:900px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col{grid-template-columns:1fr}}
+@media(max-width:650px){main{padding:18px 12px 48px}.record-grid{grid-template-columns:1fr}.panel{padding:12px}.stat b{font-size:21px}h1{font-size:20px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">🏆</div><div><h1>Season Records</h1><div class="sub">All-time personal bests across tracked Chaos seasons</div></div></div>
+  <nav class="nav"><a href="/seasons.html">🏆 Seasons</a><a href="/milestones.html">🎖️ Milestones</a><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+</header>
+
+<section class="panel">
+  <div class="panel-head"><div><strong>All-time record book</strong><div class="sub">Each member's best saved value for each category</div></div><span class="sub" id="updated">Loading records…</span></div>
+  <div class="summary">
+    <div class="stat"><span>Record categories</span><b id="category-count">—</b><small>Season, activity, day and week</small></div>
+    <div class="stat"><span>Personal bests recorded</span><b id="record-count">—</b><small>One current best per member/category</small></div>
+    <div class="stat"><span>Members with records</span><b id="member-count">—</b><small>Across all tracked seasons</small></div>
+    <div class="stat"><span>Daily history rows</span><b id="daily-count">—</b><small id="daily-coverage">Coverage starts with this release</small></div>
+  </div>
+</section>
+
+<h2>All-time record holders</h2>
+<div class="record-grid" id="record-grid"><div class="empty">Loading all-time records…</div></div>
+
+<div class="two-col">
+  <div>
+    <h2>Most decorated members</h2>
+    <section class="panel">
+      <div class="tables"><table>
+        <thead><tr><th>#</th><th>Member</th><th class="num">Categories held</th><th>Records</th></tr></thead>
+        <tbody id="most-decorated"><tr><td colspan="4" class="empty">Loading record holders…</td></tr></tbody>
+      </table></div>
+    </section>
+  </div>
+  <div>
+    <h2>Recent daily totals</h2>
+    <section class="panel">
+      <div class="tables"><table>
+        <thead><tr><th>Member</th><th>Manila date</th><th class="num">Rep gained</th></tr></thead>
+        <tbody id="recent-daily"><tr><td colspan="3" class="empty">Loading daily history…</td></tr></tbody>
+      </table></div>
+    </section>
+  </div>
+</div>
+
+<h2>Daily record coverage</h2>
+<section class="panel">
+  <div class="panel-head"><div><strong>When daily tracking began</strong><div class="sub">Calendar-day and calendar-week totals are calculated only from durable saved rows</div></div><span class="pill" id="daily-status">Loading coverage</span></div>
+  <div id="coverage-list" class="tables"><table><thead><tr><th>Season</th><th>Status</th><th class="num">Daily rows</th><th class="num">Members</th><th class="num">Calendar days</th><th>Coverage</th></tr></thead><tbody id="coverage-rows"><tr><td colspan="6" class="empty">Loading coverage…</td></tr></tbody></table></div>
+  <div class="note" id="coverage-note">Daily and weekly history begins with the deployment of durable daily tracking. The old 30-day event feed is not used to invent earlier best-day or best-week records.</div>
+</section>
+
+<div class="status"><span id="status" class="sub">Loading records…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
+</main>
+<script>
+(function(){
+ const $=id=>document.getElementById(id);
+ const fmt=value=>Number(value||0).toLocaleString('en-US');
+ const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const icons={season_gain:'💎',active_days:'⚔️',longest_streak:'🔥',gain_events:'📈',best_day_gain:'☀️',best_week_gain:'📅'};
+ function valueLabel(row){
+   if(row.key==='active_days'||row.key==='longest_streak')return fmt(row.record_value)+' days';
+   if(row.key==='gain_events')return fmt(row.record_value)+' increases';
+   return '+'+fmt(row.record_value)+' rep';
+ }
+ function date(value){
+   if(!value)return 'Date not recorded';
+   const d=String(value).slice(0,10);
+   const parts=d.split('-').map(Number);
+   return new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})
+     .format(new Date(Date.UTC(parts[0],parts[1]-1,parts[2],12)));
+ }
+ function renderRecords(){
+   $('record-grid').innerHTML=data.records.length?data.records.map(category=>{
+     const leaders=category.leaders||[];
+     const top=leaders[0];
+     const unit=category.unit==='days'?' days':category.unit==='increases'?' increases':' rep';
+     const cards=leaders.length?leaders.slice(0,8).map(row=>
+       '<div class="holder"><div><a class="holder-name" href="/member.html?name='+encodeURIComponent(row.member)+'">'+esc(row.member)+'</a>'+
+       '<div class="holder-meta">Season '+fmt(row.season_number)+
+       (row.period_start?' · '+esc(date(row.period_start))+(row.period_end&&row.period_end!==row.period_start?' – '+esc(date(row.period_end)):''):' · aggregate date not reconstructed')+
+       '</div></div><div class="holder-value">'+(category.unit==='days'?fmt(row.record_value)+unit:category.unit==='increases'?fmt(row.record_value)+unit:'+'+fmt(row.record_value)+unit)+'</div></div>'
+     ).join(''):'<div class="empty">No saved holder yet.</div>';
+     return '<article class="record-card"><div class="record-heading"><div><div class="record-title">'+icons[category.key]+' '+esc(category.title)+'</div>'+
+       '<div class="record-desc">'+esc(category.description)+'</div></div><span class="pill">'+fmt(category.holder_count)+' holders</span></div>'+
+       '<div class="record-value">'+(top?valueLabel({key:category.key,record_value:top.record_value}):'—')+'</div>'+
+       (top?'<div class="holder-meta">Current record · <a href="/member.html?name='+encodeURIComponent(top.member)+'">'+esc(top.member)+'</a></div>':'')+
+       '<div style="margin-top:10px">'+cards+'</div></article>';
+   }).join(''):'<div class="empty">No personal bests have been saved yet.</div>';
+ }
+ function renderDecorated(){
+   $('most-decorated').innerHTML=data.most_decorated.length?data.most_decorated.slice(0,20).map((row,index)=>
+     '<tr><td>'+(index+1)+'</td><td><a href="/member.html?name='+encodeURIComponent(row.member)+'">'+esc(row.member)+'</a></td>'+
+     '<td class="num">'+fmt(row.records_held)+'</td><td>'+row.categories.map(key=>esc(key.replace(/_/g,' '))).join(', ')+'</td></tr>'
+   ).join(''):'<tr><td colspan="4" class="empty">No record holders yet.</td></tr>';
+ }
+ function renderDaily(){
+   $('recent-daily').innerHTML=data.recent_daily_records.length?data.recent_daily_records.slice(0,20).map(row=>
+     '<tr><td><a href="/member.html?name='+encodeURIComponent(row.member)+'">'+esc(row.member)+'</a></td>'+
+     '<td>'+esc(date(row.activity_date))+'</td><td class="num gain">+'+fmt(row.daily_gain)+'</td></tr>'
+   ).join(''):'<tr><td colspan="3" class="empty">Daily records will appear after new gains are recorded.</td></tr>';
+ }
+ function renderCoverage(){
+   $('coverage-rows').innerHTML=data.season_coverage.length?data.season_coverage.map(row=>
+     '<tr><td>Season '+fmt(row.season_number)+'</td><td>'+(row.status==='active'?'Current':'Completed')+'</td>'+
+     '<td class="num">'+fmt(row.daily_rows)+'</td><td class="num">'+fmt(row.members_with_daily_records)+'</td>'+
+     '<td class="num">'+fmt(row.tracked_calendar_days)+'</td><td>'+(row.coverage_start?esc(date(row.coverage_start))+' – '+esc(date(row.coverage_end)):'No daily data')+'</td></tr>'
+   ).join(''):'<tr><td colspan="6" class="empty">No season coverage yet.</td></tr>';
+ }
+ function render(){
+   $('category-count').textContent=fmt(data.records.length);
+   $('record-count').textContent=fmt(data.records.reduce((n,row)=>n+row.holder_count,0));
+   $('member-count').textContent=fmt(data.most_decorated.length);
+   $('daily-count').textContent=fmt(data.daily_tracking.rows);
+   $('daily-coverage').textContent=data.daily_tracking.coverage_start
+     ? date(data.daily_tracking.coverage_start)+' – '+date(data.daily_tracking.coverage_end)
+     : 'No daily totals recorded yet';
+   $('updated').textContent='Updated '+new Date(data.generated_at||Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+   $('daily-status').textContent=data.daily_tracking.available?'Daily tracking active':'Awaiting first saved day';
+   $('coverage-note').textContent=data.daily_tracking.note;
+   renderRecords();renderDecorated();renderDaily();renderCoverage();
+   $('status').textContent='Updated · Season '+(data.active_season_number||'—')+' · '+fmt(data.daily_tracking.rows)+' permanent daily rows';
+   $('status').classList.remove('error');
+ }
+ let data=null,busy=false;
+ async function load(){
+   if(busy)return;busy=true;
+   try{
+     const response=await fetch('/api/season-records',{cache:'no-store'});
+     const next=await response.json();
+     if(!response.ok)throw new Error(next.error||'Records API returned HTTP '+response.status);
+     if(!Array.isArray(next.records)||!Array.isArray(next.most_decorated)||!Array.isArray(next.season_coverage))
+       throw new Error('Records API response is incomplete.');
+     data=next;render();
+   }catch(error){
+     $('status').textContent=error.message;$('status').classList.add('error');
+     if(!data)$('record-grid').innerHTML='<div class="empty error">Unable to load all-time records.</div>';
+   }finally{busy=false;}
+ }
+ load();setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
