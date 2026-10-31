@@ -195,7 +195,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       : 'No recorded changes';
     $('event-rows').innerHTML = events.length ? events.map(event =>
       '<tr><td>' + esc(eventDate(event.at)) + '</td><td class="num gain">+' + fmt(event.gain) +
-      '</td><td class="num">' + fmt(event.total) + '</td></tr>'
+      '</td><td class="num">' + (event.total == null ? '—' : fmt(event.total)) + '</td></tr>'
     ).join('') : '<tr><td colspan="3" class="empty">No reputation increases have been recorded for this member in the available history.</td></tr>';
     if (events.length >= Number(data.event_limit || 200)) {
       $('event-summary').textContent = 'Showing latest ' + data.event_limit + ' recorded changes';
