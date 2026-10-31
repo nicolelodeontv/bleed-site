@@ -665,18 +665,18 @@ async function handleSeasonAnalytics(req, res) {
         notable_records: notableRecords.slice(0, 10),
         note: weeklyHistoryReady
           ? 'Week-over-week improvements compare complete saved calendar weeks.'
-          : 'Biggest improvements are withheld until the daily ledger covers the full previous calendar week.',
+          : 'Biggest improvements are withheld until all 7 dates in the previous calendar week have saved daily rank snapshots.',
       },
       momentum: {
         available: momentumReady,
         comparison_days: 7,
         note: momentumReady
           ? 'Compares the latest 7 Manila calendar days with the preceding 7 days.'
-          : 'Momentum labels are withheld until the daily ledger spans at least 14 calendar days.',
+          : 'Momentum labels are withheld until 14 consecutive calendar dates have saved daily rank snapshots.',
         members: momentum,
       },
       rank_movement: {
-        available: !!currentSnapshotDate,
+        available: !!baselineSnapshotDate,
         comparison_date: baselineSnapshotDate,
         current_date: currentSnapshotDate,
         members: rankMovement,
