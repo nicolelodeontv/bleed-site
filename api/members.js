@@ -36,7 +36,7 @@ async function pollClan(id, now) {
   if (old.length && !reset) {
     for (const m of members) {
       if (prev[m.name] !== undefined && m.rep > prev[m.name]) {
-        gains.push({ at: now, clan_id: Number(id), clan: d.name, member: m.name, gain: m.rep - prev[m.name] });
+        gains.push({ at: now, clan_id: Number(id), clan: d.name, member: m.name, gain: m.rep - prev[m.name], total: m.rep });
       }
     }
   }
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
     const now = Date.now();
     if (await claimPoll(now)) await runPoll(now);
 
-    const r = await fetch(REST + '/rep_gains?at=gte.' + (now - 3600e3) + '&order=at.desc&limit=300&select=at,clan,member,gain', { headers: H });
+    const r = await fetch(REST + '/rep_gains?at=gte.' + (now - 3600e3) + '&order=at.desc&limit=300&select=at,clan,member,gain,total', { headers: H });
     if (!r.ok) throw new Error('Supabase read failed: ' + r.status);
     res.setHeader('Cache-Control', 's-maxage=5');
     return res.status(200).json({ now: Date.now(), gains: await r.json() });
