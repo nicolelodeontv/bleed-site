@@ -319,7 +319,7 @@ select{min-width:145px}
     }
     load(selectedA, selectedB);
   });
-  $('refresh').addEventListener('click', () => load(selectedA, selectedB));
+  $('refresh').addEventListener('click', () => load(selectedA && selectedB ? selectedA : '', selectedA && selectedB ? selectedB : ''));
   $('member-search').addEventListener('input', () => { if (data && data.comparison_available) renderMemberRows(); });
   $('export').addEventListener('click', exportCsv);
   load('', '');
