@@ -319,7 +319,317 @@ async function handleMemberRecords(req, res) {
   }
 }
 
+
+function analyticsDate(value) {
+  return String(value || '').slice(0, 10);
+}
+
+function analyticsAddDays(value, amount) {
+  const date = new Date(analyticsDate(value) + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function analyticsWeekStart(value) {
+  const date = new Date(analyticsDate(value) + 'T00:00:00Z');
+  const weekday = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() - weekday + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function analyticsBuildWeek(rows, start, end) {
+  const members = new Map();
+  let totalGain = 0;
+  let totalEvents = 0;
+  const dates = new Set();
+  for (const row of rows) {
+    const date = analyticsDate(row.activity_date);
+    if (date < start || date > end) continue;
+    const gain = Number(row.daily_gain || 0);
+    const events = Number(row.gain_events || 0);
+    totalGain += gain;
+    totalEvents += events;
+    dates.add(date);
+    if (!members.has(row.member)) members.set(row.member, {
+      member: row.member, gain: 0, events: 0, active_days: 0,
+    });
+    const item = members.get(row.member);
+    item.gain += gain;
+    item.events += events;
+    item.active_days++;
+  }
+  const leaders = Array.from(members.values()).sort((a,b) =>
+    b.gain - a.gain || b.events - a.events || a.member.localeCompare(b.member)
+  );
+  return {
+    start, end,
+    total_gain: totalGain,
+    total_events: totalEvents,
+    active_members: members.size,
+    active_days: dates.size,
+    top_gainers: leaders.slice(0, 5),
+  };
+}
+
+async function handleSeasonAnalytics(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+  if (!SUPABASE_URL || !KEY) {
+    return res.status(500).json({ error: 'season analytics are not configured' });
+  }
+
+  const rawSeason = req.query.season;
+  const requestedSeason = rawSeason == null || rawSeason === ''
+    ? null : (typeof rawSeason === 'string' ? Number(rawSeason) : NaN);
+  if (rawSeason != null && rawSeason !== '' &&
+      (!Number.isSafeInteger(requestedSeason) || requestedSeason < 1)) {
+    return res.status(400).json({ error: 'invalid season number' });
+  }
+
+  try {
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const trackingStart = analyticsAddDays(today, -89);
+    const [seasonRows] = await Promise.all([
+      read('/chaos_seasons?select=season_number,started_at,ended_at,status&order=season_number.desc&limit=100', 'Season history'),
+    ]);
+    const seasonList = Array.isArray(seasonRows) ? seasonRows : [];
+    const activeSeason = seasonList.find(row => row.status === 'active') || seasonList[0] || null;
+    const selectedSeason = requestedSeason == null
+      ? activeSeason
+      : seasonList.find(row => Number(row.season_number) === requestedSeason);
+    if (!selectedSeason) return res.status(404).json({ error: 'That season was not found.' });
+
+    const seasonNumber = Number(selectedSeason.season_number);
+    const dailyQuery = new URLSearchParams({
+      select: 'season_number,member,activity_date,daily_gain,gain_events',
+      season_number: 'eq.' + seasonNumber,
+      activity_date: 'gte.' + trackingStart,
+      order: 'activity_date.desc,daily_gain.desc,member.asc',
+      limit: '10000',
+    });
+    const rankingQuery = new URLSearchParams({
+      select: 'season_number,member,snapshot_date,rank_position,season_gain,gain_events,active_days,current_rep,captured_at',
+      season_number: 'eq.' + seasonNumber,
+      snapshot_date: 'gte.' + trackingStart,
+      order: 'snapshot_date.desc,rank_position.asc',
+      limit: '10000',
+    });
+    const statsQuery = new URLSearchParams({
+      select: 'member,current_rep,season_gain,gain_events,active_days,last_gain_day',
+      season_number: 'eq.' + seasonNumber,
+      order: 'season_gain.desc,member.asc',
+      limit: '1000',
+    });
+
+    const [dailyResult, rankingResult, statsResult] = await Promise.all([
+      read('/chaos_season_daily_stats?' + dailyQuery.toString(), 'Daily season analytics'),
+      read('/chaos_season_daily_rankings?' + rankingQuery.toString(), 'Daily leaderboard snapshots'),
+      read('/chaos_season_member_stats?' + statsQuery.toString(), 'Current season member totals'),
+    ]);
+    const dailyRows = Array.isArray(dailyResult) ? dailyResult : [];
+    const rankingRows = Array.isArray(rankingResult) ? rankingResult : [];
+    const statsRows = Array.isArray(statsResult) ? statsResult : [];
+
+    const dayMap = new Map();
+    const memberTotals = new Map();
+    const memberDayMap = new Map();
+    for (const row of dailyRows) {
+      const date = analyticsDate(row.activity_date);
+      const gain = Number(row.daily_gain || 0);
+      const events = Number(row.gain_events || 0);
+      if (!dayMap.has(date)) dayMap.set(date, {
+        date, gain: 0, events: 0, active_members: new Set(),
+      });
+      const day = dayMap.get(date);
+      day.gain += gain;
+      day.events += events;
+      day.active_members.add(row.member);
+
+      if (!memberTotals.has(row.member)) memberTotals.set(row.member, {
+        member: row.member, gain: 0, events: 0, active_days: 0,
+      });
+      const total = memberTotals.get(row.member);
+      total.gain += gain;
+      total.events += events;
+      total.active_days++;
+
+      memberDayMap.set(row.member + '|' + date, { gain, events });
+    }
+
+    const dailyTotals = Array.from(dayMap.values())
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .map(row => ({
+        date: row.date, gain: row.gain, events: row.events,
+        active_members: row.active_members.size,
+      }));
+    const coverageDates = dailyTotals.map(row => row.date);
+    const dailyFirst = coverageDates[0] || null;
+    const dailyLast = coverageDates[coverageDates.length - 1] || null;
+
+    const heatmapStart = analyticsAddDays(today, -55);
+    const heatmapDates = Array.from({length:56}, (_,i) => analyticsAddDays(heatmapStart, i));
+    const heatmapMembers = Array.from(memberTotals.values())
+      .sort((a,b) => b.gain - a.gain || a.member.localeCompare(b.member))
+      .slice(0, 18)
+      .map(member => ({
+        member: member.member,
+        total_gain: member.gain,
+        days: heatmapDates.map(date => {
+          const value = memberDayMap.get(member.member + '|' + date);
+          return { date, gain: value ? value.gain : 0, events: value ? value.events : 0 };
+        }),
+      }));
+
+    const currentWeekStart = analyticsWeekStart(today);
+    const previousWeekStart = analyticsAddDays(currentWeekStart, -7);
+    const previousWeekEnd = analyticsAddDays(currentWeekStart, -1);
+    const currentWeek = analyticsBuildWeek(dailyRows, currentWeekStart, today);
+    const previousWeek = analyticsBuildWeek(dailyRows, previousWeekStart, previousWeekEnd);
+
+    const momentumReady = !!dailyFirst && dailyFirst <= analyticsAddDays(today, -13);
+    const momentum = statsRows.map(row => {
+      const currentGain = dailyRows.filter(item =>
+        item.member === row.member &&
+        analyticsDate(item.activity_date) >= analyticsAddDays(today, -6) &&
+        analyticsDate(item.activity_date) <= today
+      ).reduce((sum,item) => sum + Number(item.daily_gain || 0), 0);
+      const previousGain = dailyRows.filter(item =>
+        item.member === row.member &&
+        analyticsDate(item.activity_date) >= analyticsAddDays(today, -13) &&
+        analyticsDate(item.activity_date) <= analyticsAddDays(today, -7)
+      ).reduce((sum,item) => sum + Number(item.daily_gain || 0), 0);
+      let status = 'not enough history';
+      if (momentumReady) {
+        if (previousGain === 0 && currentGain > 0) status = 'started';
+        else if (previousGain === 0 && currentGain === 0) status = 'no gains';
+        else if (currentGain > previousGain * 1.1) status = 'increasing';
+        else if (currentGain < previousGain * 0.9) status = 'slowing';
+        else status = 'steady';
+      }
+      return {
+        member: row.member,
+        current_rep: Number(row.current_rep || 0),
+        season_gain: Number(row.season_gain || 0),
+        last_7d_gain: currentGain,
+        previous_7d_gain: previousGain,
+        change: currentGain - previousGain,
+        status,
+      };
+    }).sort((a,b) =>
+      b.last_7d_gain - a.last_7d_gain ||
+      b.season_gain - a.season_gain ||
+      a.member.localeCompare(b.member)
+    );
+
+    const sortedSnapshots = rankingRows.slice().sort((a,b) =>
+      analyticsDate(b.snapshot_date).localeCompare(analyticsDate(a.snapshot_date)) ||
+      Number(a.rank_position) - Number(b.rank_position)
+    );
+    const currentSnapshotDate = sortedSnapshots.length
+      ? analyticsDate(sortedSnapshots[0].snapshot_date) : null;
+    const baselineTarget = analyticsAddDays(today, -7);
+    const baselineSnapshotDate = sortedSnapshots
+      .map(row => analyticsDate(row.snapshot_date))
+      .filter(date => date <= baselineTarget)
+      .sort()
+      .slice(-1)[0] || null;
+    const currentRanks = new Map();
+    const previousRanks = new Map();
+    for (const row of sortedSnapshots) {
+      const date = analyticsDate(row.snapshot_date);
+      if (date === currentSnapshotDate && !currentRanks.has(row.member)) currentRanks.set(row.member, row);
+      if (date === baselineSnapshotDate && !previousRanks.has(row.member)) previousRanks.set(row.member, row);
+    }
+    const rankMovement = Array.from(currentRanks.values()).map(row => {
+      const previous = previousRanks.get(row.member) || null;
+      const currentRank = Number(row.rank_position);
+      const previousRank = previous ? Number(previous.rank_position) : null;
+      return {
+        member: row.member,
+        rank: currentRank,
+        previous_rank: previousRank,
+        rank_change: previousRank == null ? null : previousRank - currentRank,
+        season_gain: Number(row.season_gain || 0),
+        current_rep: Number(row.current_rep || 0),
+        previous_snapshot_date: previous ? baselineSnapshotDate : null,
+      };
+    }).sort((a,b) => a.rank - b.rank);
+
+    const latestDay = dailyTotals[dailyTotals.length - 1] || null;
+    const cumulativeGain = dailyTotals.reduce((sum,row) => sum + row.gain, 0);
+    res.setHeader('Cache-Control', 's-maxage=20, stale-while-revalidate=30');
+    return res.status(200).json({
+      generated_at: Date.now(),
+      timezone: 'Asia/Manila',
+      today,
+      season: {
+        season_number: seasonNumber,
+        status: selectedSeason.status,
+        started_at: Number(selectedSeason.started_at || 0),
+        ended_at: selectedSeason.ended_at == null ? null : Number(selectedSeason.ended_at),
+      },
+      seasons: seasonList.map(row => ({
+        season_number: Number(row.season_number),
+        status: row.status,
+        started_at: Number(row.started_at || 0),
+        ended_at: row.ended_at == null ? null : Number(row.ended_at),
+      })),
+      summary: {
+        total_gain_tracked: cumulativeGain,
+        tracked_days: coverageDates.length,
+        first_tracked_day: dailyFirst,
+        last_tracked_day: dailyLast,
+        active_members: new Set(dailyRows.map(row => row.member)).size,
+        total_gain_today: latestDay && latestDay.date === today ? latestDay.gain : 0,
+        current_week_gain: currentWeek.total_gain,
+        current_week_members: currentWeek.active_members,
+        ranking_snapshot_date: currentSnapshotDate,
+        ranking_baseline_date: baselineSnapshotDate,
+        ranking_members: currentRanks.size,
+      },
+      daily_totals: dailyTotals,
+      heatmap: {
+        start: heatmapStart,
+        end: today,
+        dates: heatmapDates,
+        members: heatmapMembers,
+      },
+      weekly: {
+        current: currentWeek,
+        previous: previousWeek,
+      },
+      momentum: {
+        available: momentumReady,
+        comparison_days: 7,
+        note: momentumReady
+          ? 'Compares the latest 7 Manila calendar days with the preceding 7 days.'
+          : 'Momentum labels are withheld until the daily ledger spans at least 14 calendar days.',
+        members: momentum,
+      },
+      rank_movement: {
+        available: !!currentSnapshotDate,
+        comparison_date: baselineSnapshotDate,
+        current_date: currentSnapshotDate,
+        members: rankMovement,
+        note: baselineSnapshotDate
+          ? 'Rank changes compare the latest saved daily snapshot with the latest snapshot on or before seven days earlier.'
+          : 'Rank movement becomes available after at least eight calendar days of daily rank snapshots.',
+      },
+      daily_tracking_note: 'Daily totals begin with the durable daily ledger. Rank history begins with the first successful daily snapshot. Earlier event history is not presented as complete daily history.',
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: error && error.message ? error.message : 'season analytics unavailable',
+    });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.query.view === 'analytics') return handleSeasonAnalytics(req,res);
   if (req.query.view === 'records') return handleAllTimeRecords(res);
   if (req.query.view === 'member-records') return handleMemberRecords(req,res);
 
