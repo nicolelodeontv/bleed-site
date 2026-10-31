@@ -395,7 +395,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   }
 
   function currentRecordValue(key, season) {
-    const value = Number(season && season[key] || 0);
+    const value = Number(season && (key === 'longest_streak' ? season.best_streak_days : season[key]) || 0);
     if (key === 'active_days' || key === 'best_streak_days') return fmt(value) + ' days';
     if (key === 'gain_events') return fmt(value) + ' increases';
     return '+' + fmt(value) + ' rep';
@@ -435,7 +435,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       const current = Number(currentValues[key] || 0);
       const best = lookup.get(key) || null;
       return '<tr><td>' + esc(label) + '</td>' +
-        '<td class="num">' + esc(currentRecordValue(key, { [key === 'longest_streak' ? 'best_streak_days' : key]: current })) + '</td>' +
+        '<td class="num">' + esc(currentRecordValue(key, season)) + '</td>' +
         '<td class="num gain">' + (best ? esc(recordValue(best)) : '—') + '</td>' +
         '<td>' + esc(currentRecordGap(key,current,best)) + '</td></tr>';
     }).join('');
