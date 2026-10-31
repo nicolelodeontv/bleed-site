@@ -29,6 +29,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 .toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 button,select,input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px}
 .member-profile-link{display:inline-flex;align-items:center;padding:8px 11px;border:1px solid #51421f;border-radius:9px;background:#171309;color:var(--gold);font-size:12px;text-decoration:none}.member-profile-link[aria-disabled="true"]{opacity:.45;pointer-events:none}
+.export-button{font:inherit;font-size:12px;color:var(--gold);background:#171309;border:1px solid #51421f;border-radius:9px;padding:8px 11px;cursor:pointer}.export-button:hover{border-color:#8a6a27}.export-button:disabled{opacity:.55;cursor:wait}
 button{cursor:pointer;font-size:12px}
 button:hover,select:hover{border-color:#484858}
 button.active{background:#1b160b;border-color:#6e5724;color:var(--gold)}
@@ -78,7 +79,7 @@ td.rank{width:35px;color:var(--mute)}
 <section class="panel">
   <div class="panel-head">
     <div><strong id="chart-member">Select a member</strong><div class="sub">Daily reputation gained over the last 30 days</div></div>
-    <div class="toolbar"><label class="sub" for="member-select">Member</label><select id="member-select"><option value="">Loading members…</option></select><a class="member-profile-link" id="member-profile-link" href="#" aria-disabled="true">Open profile ↗</a></div>
+    <div class="toolbar"><label class="sub" for="member-select">Member</label><select id="member-select"><option value="">Loading members…</option></select><a class="member-profile-link" id="member-profile-link" href="#" aria-disabled="true">Open profile ↗</a><button class="export-button" id="export-member-csv" type="button" disabled>Export member CSV</button></div>
   </div>
   <div id="chart-holder" class="chart-wrap"><div class="chart-empty">Loading member activity…</div></div>
   <div class="legend"><span>Reputation gained that day</span><span id="chart-total"></span></div>
@@ -103,7 +104,7 @@ td.rank{width:35px;color:var(--mute)}
   <section class="panel">
     <div class="panel-head">
       <div><h2>Daily rankings</h2><div class="sub">Members ranked by gains for one day</div></div>
-      <input type="date" id="day-select" aria-label="Ranking date">
+      <div class="toolbar"><input type="date" id="day-select" aria-label="Ranking date"><button class="export-button" id="export-daily-csv" type="button" disabled>Export daily CSV</button></div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Member</th><th class="num">Rep gained</th><th class="num">Gain events</th></tr></thead>
@@ -146,6 +147,56 @@ td.rank{width:35px;color:var(--mute)}
   function memberLink(name) {
     return '<a href="/member.html?name=' + encodeURIComponent(name) + '">' + esc(name) + '</a>';
   }
+  function csvCell(value) {
+    let text = value == null ? '' : String(value);
+    if (/^[=+@-]/.test(text) || text.charCodeAt(0) === 9 || text.charCodeAt(0) === 13) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  function downloadCsv(filename, rows) {
+    const csv = String.fromCharCode(0xFEFF) + rows.map(row => row.map(csvCell).join(',')).join(String.fromCharCode(13,10));
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function exportMemberHistory() {
+    if (!data || !selectedMember) return;
+    const today = dayKey(new Date()), first = shiftDay(today, -29);
+    const entries = data.activity.filter(row => row.member === selectedMember && row.day >= first && row.day <= today)
+      .slice().sort((a,b) => a.day.localeCompare(b.day));
+    const rows = [
+      ['Date (Asia/Manila)','Member','Reputation gained','Gain events','Resulting reputation','Last gain at (Asia/Manila)'],
+      ...entries.map(row => [
+        row.day, selectedMember, Number(row.gain || 0), Number(row.events || 0),
+        row.last_total == null ? '' : Number(row.last_total),
+        row.last_gain_at ? new Date(Number(row.last_gain_at)).toLocaleString('en-PH', {timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : ''
+      ])
+    ];
+    downloadCsv('chaos-' + selectedMember.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'').toLowerCase() + '-daily-history-' + today + '.csv', rows);
+    $('status-message').textContent = 'Exported ' + entries.length + ' daily member records to CSV.';
+    $('status-message').classList.remove('error');
+  }
+  function exportDailyRanking() {
+    if (!data) return;
+    const day = $('day-select').value;
+    const entries = data.activity.filter(row => row.day === day).slice().sort((a,b) => Number(b.gain)-Number(a.gain));
+    const rows = [
+      ['Rank','Date (Asia/Manila)','Member','Reputation gained','Gain events','Resulting reputation','Last gain at (Asia/Manila)'],
+      ...entries.map((row,index) => [
+        index+1,day,row.member,Number(row.gain || 0),Number(row.events || 0),
+        row.last_total == null ? '' : Number(row.last_total),
+        row.last_gain_at ? new Date(Number(row.last_gain_at)).toLocaleString('en-PH', {timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : ''
+      ])
+    ];
+    downloadCsv('chaos-daily-ranking-' + day + '.csv', rows);
+    $('status-message').textContent = 'Exported all ' + entries.length + ' members ranked on ' + day + '.';
+    $('status-message').classList.remove('error');
+  }
 
   function setSummary() {
     const today = dayKey(new Date());
@@ -171,6 +222,7 @@ td.rank{width:35px;color:var(--mute)}
     const profileLink = $('member-profile-link');
     profileLink.href = selectedMember ? '/member.html?name=' + encodeURIComponent(selectedMember) : '#';
     profileLink.setAttribute('aria-disabled', String(!selectedMember));
+    $('export-member-csv').disabled = !selectedMember;
   }
 
   function renderChart() {
@@ -226,6 +278,7 @@ td.rank{width:35px;color:var(--mute)}
 
   function renderDaily() {
     const day = $('day-select').value;
+    $('export-daily-csv').disabled = !data || !day;
     const rows = data.activity.filter(row=>row.day===day).slice().sort((a,b)=>Number(b.gain)-Number(a.gain)).slice(0,10);
     $('daily-rows').innerHTML = rows.length ? rows.map((row,i)=>'<tr><td class="rank">'+(i+1)+'</td><td>'+memberLink(row.member)+'</td><td class="num gain">+'+fmt(row.gain)+'</td><td class="num">'+fmt(row.events)+'</td></tr>').join('') : '<tr><td colspan="4" class="empty">No recorded gains for '+esc(dateLabel(day, {year:'numeric',month:'short',day:'numeric'})) +'.</td></tr>';
   }
@@ -258,7 +311,9 @@ td.rank{width:35px;color:var(--mute)}
     } finally { refreshBusy=false; }
   }
 
-  $('member-select').addEventListener('change',e=>{selectedMember=e.target.value;renderChart();});
+  $('member-select').addEventListener('change',e=>{selectedMember=e.target.value;renderChart();$('export-member-csv').disabled=!selectedMember;});
+  $('export-member-csv').addEventListener('click',exportMemberHistory);
+  $('export-daily-csv').addEventListener('click',exportDailyRanking);
   $('range-buttons').addEventListener('click',e=>{
     const button=e.target.closest('[data-range]');
     if(!button) return;
