@@ -179,7 +179,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
  async function load(){
    if(busy)return;busy=true;
    try{
-     const response=await fetch('/api/season-records',{cache:'no-store'});
+     const response=await fetch('/api/seasons?view=records',{cache:'no-store'});
      const next=await response.json();
      if(!response.ok)throw new Error(next.error||'Records API returned HTTP '+response.status);
      if(!Array.isArray(next.records)||!Array.isArray(next.most_decorated)||!Array.isArray(next.season_coverage))
