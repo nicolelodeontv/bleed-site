@@ -59,7 +59,8 @@ tbody tr:last-child td{border-bottom:0}
 .week-card .wk-total{font-size:22px;font-weight:800;margin:3px 0}
 .week-card .wk-meta{font-size:11px;color:var(--muted)}
 .week-list{list-style:none;margin:12px 0 0;padding:0}
-.week-list li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.055);font-size:12px}\n.week-extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.week-extra{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px}.week-extra h3{font-size:12px;margin:0 0 5px}.week-extra .week-list{margin-top:4px}
+.week-list li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.055);font-size:12px}
+.week-extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.week-extra{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px}.week-extra h3{font-size:12px;margin:0 0 5px}.week-extra .week-list{margin-top:4px}
 .week-list b{font-variant-numeric:tabular-nums;color:var(--gold)}
 .empty{color:var(--muted);text-align:center;padding:22px 8px;font-size:12px}
 .actions{display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px}
@@ -261,8 +262,22 @@ tbody tr:last-child td{border-bottom:0}
     drawHeatmap(data.heatmap || {dates:[],members:[]});
     showWeek('current-week', data.weekly.current);
     showWeek('previous-week', data.weekly.previous);
+    const activeRows = data.weekly.current.top_active_members || [];
+    $('most-active-list').innerHTML = activeRows.length
+      ? activeRows.map(row => '<li><span>' + esc(row.member) + '</span><b>' + number(row.active_days) + ' days</b></li>').join('')
+      : '<li class="empty">No activity recorded</li>';
+    const improvements = data.weekly.biggest_improvements || [];
+    $('improvements-list').innerHTML = data.weekly.improvements_available
+      ? (improvements.length
+        ? improvements.map(row => '<li><span>' + esc(row.member) + '</span><b>+' + number(row.improvement) + '</b></li>').join('')
+        : '<li class="empty">No positive change</li>')
+      : '<li class="empty">Available after a complete previous week is tracked</li>';
+    const records = data.weekly.notable_records || [];
+    $('records-list').innerHTML = records.length
+      ? records.map(row => '<li><span>' + esc(row.member) + ' · ' + esc(row.record_title) + '</span><b>' + number(row.record_value) + '</b></li>').join('')
+      : '<li class="empty">No new personal records</li>';
     $('weekly-note').textContent = 'Current week to date: ' + number(data.weekly.current.active_members) +
-      ' members recorded gains. Daily totals currently cover ' + number(summary.tracked_days) + ' calendar days.';
+      ' active members. ' + (data.weekly.note || '') + ' Daily coverage: ' + number(summary.tracked_days) + ' calendar days.';
     $('heat-note').textContent = 'Showing ' + (data.heatmap.start || '') + ' through ' + (data.heatmap.end || '') +
       ' · top 18 members by tracked reputation gained.';
     renderMomentum(data.momentum);
