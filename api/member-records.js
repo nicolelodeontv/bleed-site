@@ -109,6 +109,15 @@ export default async function handler(req, res) {
     const bestWeeks = Array.from(weekTotals.values()).sort((a,b) =>
       b.gain - a.gain || b.week_start.localeCompare(a.week_start)
     ).slice(0,10);
+    const activeDailyRows = activeSeason
+      ? days.filter(row => Number(row.season_number) === Number(activeSeason.season_number))
+      : [];
+    const activeWeeks = Array.from(weekTotals.values())
+      .filter(row => activeSeason && Number(row.season_number) === Number(activeSeason.season_number));
+    const currentBestDay = activeDailyRows.reduce((best,row) =>
+      Math.max(best,Number(row.daily_gain || 0)),0);
+    const currentBestWeek = activeWeeks.reduce((best,row) =>
+      Math.max(best,Number(row.gain || 0)),0);
     const recentDaily = days.slice(0,45).map(row => ({
       season_number: Number(row.season_number),
       activity_date: String(row.activity_date).slice(0,10),
@@ -139,6 +148,8 @@ export default async function handler(req, res) {
         active_days: activeStats ? Number(activeStats.active_days || 0) : 0,
         current_streak_days: activeStats ? Number(activeStats.current_streak_days || 0) : 0,
         best_streak_days: activeStats ? Number(activeStats.longest_streak_days || 0) : 0,
+        best_day_gain: currentBestDay,
+        best_week_gain: currentBestWeek,
       } : null,
       records: outputRecords,
       record_count: recordsHeld,
