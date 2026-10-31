@@ -44,11 +44,17 @@ export default async function handler(req, res) {
       order: 'season_number.asc,season_gain.desc,member.asc',
       limit: '10000',
     });
+    const awardsQuery = new URLSearchParams({
+      select: 'season_number,award_key,award_title,metric_key,winning_value,winners,eligible_count,decided_at,award_version',
+      order: 'season_number.desc,award_key.asc',
+      limit: '1000',
+    });
 
-    const [seasons, memberRows, rankingRows] = await Promise.all([
+    const [seasons, memberRows, rankingRows, awardRows] = await Promise.all([
       read('/chaos_seasons?' + seasonsQuery.toString(), 'Season history'),
       read('/chaos_season_member_stats?' + memberQuery.toString(), 'Member season history'),
       read('/chaos_season_member_stats?' + rankingsQuery.toString(), 'Season ranking totals'),
+      read('/chaos_season_awards?' + awardsQuery.toString(), 'Member season awards'),
     ]);
 
     if (!Array.isArray(seasons) || !seasons.length) {
@@ -63,6 +69,22 @@ export default async function handler(req, res) {
       const number = Number(row.season_number);
       if (!cohorts.has(number)) cohorts.set(number, []);
       cohorts.get(number).push(row);
+    }
+
+    const memberAwards = new Map();
+    for (const award of Array.isArray(awardRows) ? awardRows : []) {
+      const winners = Array.isArray(award.winners) ? award.winners : [];
+      const won = winners.some(winner => winner && winner.member === name);
+      if (!won) continue;
+      const number = Number(award.season_number);
+      if (!memberAwards.has(number)) memberAwards.set(number, []);
+      memberAwards.get(number).push({
+        award_key: award.award_key,
+        award_title: award.award_title,
+        metric_key: award.metric_key,
+        winning_value: Number(award.winning_value || 0),
+        decided_at: Number(award.decided_at || 0),
+      });
     }
 
     const history = seasons.map(season => {
@@ -91,6 +113,8 @@ export default async function handler(req, res) {
         gain_events: own ? Number(own.gain_events || 0) : null,
         active_days: own ? Number(own.active_days || 0) : null,
         last_gain_at: own && own.last_gain_at != null ? Number(own.last_gain_at) : null,
+        longest_streak_days: own ? Number(own.longest_streak_days || 0) : null,
+        awards: memberAwards.get(number) || [],
       };
     });
 
