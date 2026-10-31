@@ -80,7 +80,7 @@ function makeDiscordPayload(alert) {
         inline: false,
       },
     ],
-    footer: { text: 'Bleed Watch · automatic season rollover · times in Asia/Manila' },
+    footer: { text: 'Bleed Watch · automatic season rollover' },
     timestamp: new Date(startedAt).toISOString(),
   };
 
