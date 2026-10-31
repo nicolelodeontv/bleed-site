@@ -1,4 +1,4 @@
-import { dispatchSeasonRolloverAlert } from './_season-alerts.js';
+import { dispatchChaosMilestoneAlert, dispatchSeasonRolloverAlert } from './_season-alerts.js';
 
 // api/members.js
 // Shared member feed: one server-side Chaos game read every 5 seconds for all visitors.
@@ -189,6 +189,12 @@ async function runChaosPoll(now) {
       if (alert && alert.status !== 'idle') result.season_alert = alert;
     } catch (e) {
       console.error('Season rollover dispatch failed:', String(e && e.message || e).slice(0, 300));
+    }
+    try {
+      const milestoneAlert = await dispatchChaosMilestoneAlert();
+      if (milestoneAlert && milestoneAlert.status !== 'idle') result.milestone_alert = milestoneAlert;
+    } catch (e) {
+      console.error('Milestone alert dispatch failed:', String(e && e.message || e).slice(0, 300));
     }
     return result;
   } catch (e) {
