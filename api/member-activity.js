@@ -59,12 +59,18 @@ export default async function handler(req, res) {
       id: 'eq.1',
       limit: '1',
     });
+    const seasonQuery = new URLSearchParams({
+      select: 'season_number',
+      member: memberFilter,
+      limit: '1',
+    });
 
-    const [statsRows, history, events, stateRows] = await Promise.all([
+    const [statsRows, history, events, stateRows, seasonRows] = await Promise.all([
       read('/chaos_member_gain_stats?' + memberQuery.toString(), 'Member totals'),
       read('/chaos_member_daily_activity?' + activityQuery.toString(), 'Daily member history'),
       read('/rep_gains?' + eventsQuery.toString(), 'Member event history'),
       read('/bleed_state?' + stateQuery.toString(), 'Current member roster'),
+      read('/chaos_season_member_stats?' + seasonQuery.toString(), 'Member season history'),
     ]);
 
     const state = stateRows[0] || {};
@@ -74,7 +80,7 @@ export default async function handler(req, res) {
     const current = index >= 0 ? roster[index] : null;
     const stats = statsRows[0] || {};
 
-    if (!current && !history.length && !events.length) {
+    if (!current && !history.length && !events.length && !seasonRows.length) {
       return res.status(404).json({ error: 'No current roster entry or saved history was found for this member.' });
     }
 
