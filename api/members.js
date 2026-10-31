@@ -140,19 +140,23 @@ async function pollChaos(now) {
     }
   }
 
-  const up = await fetch(REST + '/member_rep', {
+  // One transaction updates member baselines, season totals, and rolling gain events.
+  // This keeps reset detection and the persistent season ledger in sync.
+  const seasonResponse = await fetch(REST + '/rpc/record_chaos_poll', {
     method: 'POST',
-    headers: { ...H, Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify(members.map(m => ({ clan_id: CHAOS_ID, name: m.name, rep: m.rep }))),
+    headers: H,
+    body: JSON.stringify({
+      p_now: now,
+      p_members: members.map(m => ({ name: m.name, rep: m.rep })),
+      p_gains: gains,
+      p_reset: reset,
+    }),
   });
-  if (!up.ok) throw new Error('Supabase Chaos baseline upsert failed: ' + up.status);
-
-  if (gains.length) {
-    const ins = await fetch(REST + '/rep_gains', {
-      method: 'POST', headers: H, body: JSON.stringify(gains),
-    });
-    if (!ins.ok) throw new Error('Supabase Chaos gains insert failed: ' + ins.status);
+  if (!seasonResponse.ok) {
+    const detail = (await seasonResponse.text()).slice(0, 300);
+    throw new Error('Supabase Chaos season write failed: ' + seasonResponse.status + (detail ? ' · ' + detail : ''));
   }
+  const season = await seasonResponse.json();
 
   const snapshot = {
     name: String(source.name || 'Chaos'),
@@ -170,7 +174,7 @@ async function pollChaos(now) {
   });
   if (!saved.ok) throw new Error('Supabase Chaos snapshot save failed: ' + saved.status);
 
-  return { members: members.length, gains: gains.length, reset };
+  return { members: members.length, gains: gains.length, reset, season };
 }
 
 async function runChaosPoll(now) {
