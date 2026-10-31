@@ -58,16 +58,21 @@ function makeDiscordPayload(alert) {
   const awardLines = awards.length
     ? awards.map(award => {
         const winners = Array.isArray(award.winners) ? award.winners : [];
-        const metric = Number(award.winning_value || 0).toLocaleString('en-US');
+        const rawMetric = Number(award.winning_value || 0);
+        const metric = award.award_key === 'most_improved'
+          ? (rawMetric / 1000).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+          : rawMetric.toLocaleString('en-US');
         const unit = award.award_key === 'most_active' || award.award_key === 'consistency'
           ? ' days'
-          : award.award_key === 'most_recorded_increases' ? ' recorded increases' : ' rep';
+          : award.award_key === 'most_recorded_increases' ? ' recorded increases'
+            : award.award_key === 'most_improved' ? ' rep/day improved' : ' rep';
+        const awardTitle = award.award_key === 'season_champion' ? 'Season MVP' : award.award_title;
         const visibleWinners = winners.slice(0, 2).map(winner => safeText(winner.member).slice(0, 40));
         if (winners.length > visibleWinners.length) {
           visibleWinners.push('+' + (winners.length - visibleWinners.length) + ' more in Hall of Fame');
         }
         const names = visibleWinners.join(', ');
-        return '**' + safeText(award.award_title) + '** · ' + names + ' · **' + metric + unit + '**';
+        return '**' + safeText(awardTitle) + '** · ' + names + ' · **' + metric + unit + '**';
       }).join('\\n')
     : 'No award met the positive-activity requirements in the previous tracked season.';
 
