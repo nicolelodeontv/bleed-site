@@ -478,7 +478,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   async function loadPersonalRecords() {
     if (!member) return;
     try {
-      const response = await fetch('/api/member-records?name=' + encodeURIComponent(member), {cache:'no-store'});
+      const response = await fetch('/api/seasons?view=member-records&name=' + encodeURIComponent(member), {cache:'no-store'});
       const next = await response.json();
       if (!response.ok) throw new Error(next.error || 'Personal records API returned HTTP ' + response.status);
       if (!Array.isArray(next.records) || !Array.isArray(next.recent_daily)) {
