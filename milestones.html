@@ -191,7 +191,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   }
   function renderHistory(){
     $('season-history').innerHTML=data.season_summary.map(row=>
-      '<tr><td>Season '+fmt(row.season_number)+'</td><td>'+(row.status==='active'?'Current':'Completed')+'</td>'+
+      '<tr id="season-'+row.season_number+'"><td>Season '+fmt(row.season_number)+'</td><td>'+(row.status==='active'?'Current':'Completed')+'</td>'+
       '<td class="num">'+fmt(row.unlocks)+'</td><td class="num">'+fmt(row.major_unlocks)+'</td>'+
       '<td class="num">'+fmt(row.members_with_unlocks)+'</td><td><a href="/seasons.html?season='+row.season_number+'">View leaderboard →</a></td></tr>'
     ).join('');
