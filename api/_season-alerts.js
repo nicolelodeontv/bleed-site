@@ -558,3 +558,214 @@ export async function dispatchChaosPersonalBestAlert() {
     };
   }
 }
+
+
+// ---------- Weekly season report ----------
+// The queue function only creates a report after a complete Monday-Sunday
+// window has seven saved daily ranking snapshots. Its unique season/week key
+// makes repeated minute-scheduler calls safe.
+export async function queueChaosWeeklySeasonReport() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+
+  const response = await fetch(REST + '/rpc/queue_chaos_weekly_season_report', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now() }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 350);
+    throw new Error('Weekly season report queue failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const result = await response.json();
+  return result && typeof result === 'object' ? result : { status: 'unknown' };
+}
+
+async function updateWeeklySeasonReportClaim(report, patch) {
+  const query = new URLSearchParams({
+    id: 'eq.' + report.id,
+    status: 'eq.sending',
+    attempt_count: 'eq.' + report.attempt_count,
+  });
+  const response = await fetch(REST + '/chaos_weekly_season_reports?' + query.toString(), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    throw new Error('Weekly season report status update failed: HTTP ' + response.status);
+  }
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length === 1;
+}
+
+function makeWeeklySeasonReportDiscordPayload(report) {
+  const payload = report.payload && typeof report.payload === 'object' ? report.payload : {};
+  const season = Number(payload.season_number || report.season_number);
+  const start = String(payload.week_start || report.week_start || '');
+  const end = String(payload.week_end || report.week_end || '');
+  const gain = Number(payload.total_gain || 0).toLocaleString('en-US');
+  const events = Number(payload.total_events || 0).toLocaleString('en-US');
+  const activeMembers = Number(payload.active_members || 0).toLocaleString('en-US');
+  const trackedDays = Number(payload.tracked_days || 0);
+  const topGainers = Array.isArray(payload.top_gainers) ? payload.top_gainers.slice(0, 5) : [];
+  const mostActive = Array.isArray(payload.most_active) ? payload.most_active.slice(0, 5) : [];
+  const improvements = Array.isArray(payload.biggest_improvements)
+    ? payload.biggest_improvements.slice(0, 5) : [];
+  const personalRecords = Array.isArray(payload.personal_records)
+    ? payload.personal_records.slice(0, 8) : [];
+
+  const lines = (rows, render, empty) => rows.length
+    ? rows.map((row, index) => render(row, index)).join('\n')
+    : empty;
+
+  const topLines = lines(topGainers, (row, index) =>
+    '**' + (index + 1) + '.** ' + safeText(row.member).slice(0, 48) +
+    ' · **+' + Number(row.gain || 0).toLocaleString('en-US') + ' rep**',
+  'No recorded reputation gains this week.');
+
+  const activeLines = lines(mostActive, (row, index) =>
+    '**' + (index + 1) + '.** ' + safeText(row.member).slice(0, 48) +
+    ' · **' + Number(row.active_days || 0).toLocaleString('en-US') + ' days** · +' +
+    Number(row.gain || 0).toLocaleString('en-US') + ' rep',
+  'No active members were recorded this week.');
+
+  const improvementLines = payload.improvements_available
+    ? lines(improvements, row =>
+        '**' + safeText(row.member).slice(0, 48) + '** · +' +
+        Number(row.improvement || 0).toLocaleString('en-US') + ' rep (' +
+        Number(row.current_gain || 0).toLocaleString('en-US') + ' vs ' +
+        Number(row.previous_gain || 0).toLocaleString('en-US') + ')',
+      'No positive week-over-week improvements.')
+    : 'A complete previous week was not available for comparison.';
+
+  const recordLines = lines(personalRecords, row =>
+    '**' + safeText(row.member).slice(0, 42) + '** · ' +
+    safeText(row.record_title).slice(0, 52) + ' · **' +
+    Number(row.record_value || 0).toLocaleString('en-US') + '**',
+  'No new personal records this week.');
+
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      color: 0xf5c542,
+      title: '📊 Chaos Weekly Report · Season ' + season,
+      description: '**' + start + ' – ' + end + '** · Manila calendar week',
+      fields: [
+        {
+          name: '📈 Weekly totals',
+          value: '**+' + gain + ' rep**\n' + events + ' recorded increases',
+          inline: true,
+        },
+        {
+          name: '👥 Activity coverage',
+          value: '**' + activeMembers + ' members**\n' + trackedDays + '/7 days tracked',
+          inline: true,
+        },
+        { name: '🥇 Top reputation gainers', value: topLines, inline: false },
+        { name: '🔥 Most active members', value: activeLines, inline: false },
+        { name: '📊 Biggest improvements', value: improvementLines, inline: false },
+        { name: '🏆 New personal records', value: recordLines, inline: false },
+      ],
+      footer: { text: 'Bleed Watch · weekly report · Asia/Manila' },
+      timestamp: new Date(Number(payload.generated_at || report.created_at || Date.now())).toISOString(),
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'Open Season Analytics',
+        url: SITE + '/analytics.html?season=' + encodeURIComponent(season),
+      }, {
+        type: 2,
+        style: 5,
+        label: 'Season Leaderboard',
+        url: SITE + '/seasons.html?season=' + encodeURIComponent(season),
+      }],
+    }],
+    // The season and week key stays stable across delivery retries.
+    nonce: 'wr-' + season + '-' + start,
+    enforce_nonce: true,
+  };
+}
+
+export async function dispatchChaosWeeklySeasonReport() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const claimResponse = await fetch(REST + '/rpc/claim_chaos_weekly_season_report', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!claimResponse.ok) {
+    const detail = (await claimResponse.text()).slice(0, 350);
+    throw new Error('Weekly season report claim failed: HTTP ' + claimResponse.status +
+      (detail ? ' · ' + detail : ''));
+  }
+
+  const claimed = await claimResponse.json();
+  const report = Array.isArray(claimed) ? claimed[0] : null;
+  if (!report) return { status: 'idle' };
+
+  try {
+    const messageId = await deliver(makeWeeklySeasonReportDiscordPayload(report));
+    const sentAt = Date.now();
+    const marked = await updateWeeklySeasonReportClaim(report, {
+      status: 'sent',
+      discord_message_id: messageId,
+      sent_at: sentAt,
+      lease_until: 0,
+      last_error: null,
+      updated_at: sentAt,
+    });
+    if (!marked) {
+      console.error('Weekly season report delivered but outbox status was not confirmed', report.id);
+      return { status: 'sent_unconfirmed', report_id: Number(report.id) };
+    }
+    return {
+      status: 'sent',
+      report_id: Number(report.id),
+      season_number: Number(report.season_number),
+      week_start: String(report.week_start),
+      week_end: String(report.week_end),
+      message_id: messageId,
+      attempt_count: Number(report.attempt_count),
+    };
+  } catch (error) {
+    const attempt = Math.max(1, Number(report.attempt_count) || 1);
+    const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+    const failureAt = Date.now();
+    const message = String(error && error.message ? error.message : error).slice(0, 500);
+    try {
+      await updateWeeklySeasonReportClaim(report, {
+        status: 'failed',
+        next_attempt_at: failureAt + backoff,
+        lease_until: 0,
+        last_error: message,
+        updated_at: failureAt,
+      });
+    } catch (updateError) {
+      console.error('Could not schedule weekly season report retry:',
+        String(updateError.message || updateError).slice(0, 300));
+    }
+    console.error('Weekly season report Discord delivery failed:', message);
+    return {
+      status: 'retry_scheduled',
+      report_id: Number(report.id),
+      season_number: Number(report.season_number),
+      attempt_count: attempt,
+      retry_after_ms: backoff,
+    };
+  }
+}

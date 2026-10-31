@@ -1,4 +1,8 @@
 import { runTick } from './_lib.js';
+import {
+  queueChaosWeeklySeasonReport,
+  dispatchChaosWeeklySeasonReport,
+} from './_season-alerts.js';
 
 // An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
 export default async function handler(req, res) {
@@ -6,9 +10,34 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   try {
-    const s = await runTick(10000);
-    res.status(200).json({ ok: true, checked_at: s.checked_at, bleeding: Object.keys(s.bleeding) });
+    // Run the existing clan poll and the weekly Discord job concurrently so
+    // delivery latency does not extend the bleed-check critical path.
+    const [s, weeklyReport] = await Promise.all([
+      runTick(10000),
+      (async () => {
+        try {
+          const queued = await queueChaosWeeklySeasonReport();
+          const delivered = await dispatchChaosWeeklySeasonReport();
+          if (queued.status === 'queued' ||
+              ['sent', 'sent_unconfirmed', 'retry_scheduled'].includes(delivered.status)) {
+            return { queue: queued, delivery: delivered };
+          }
+          return null;
+        } catch (error) {
+          console.error('Weekly season report processing failed:',
+            String(error && error.message || error).slice(0, 400));
+          return null;
+        }
+      })(),
+    ]);
+    const result = {
+      ok: true,
+      checked_at: s.checked_at,
+      bleeding: Object.keys(s.bleeding),
+    };
+    if (weeklyReport) result.weekly_report = weeklyReport;
+    return res.status(200).json(result);
   } catch (e) {
-    res.status(502).json({ error: e.message });
+    return res.status(502).json({ error: e.message });
   }
 }
