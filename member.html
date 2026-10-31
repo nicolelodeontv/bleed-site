@@ -50,6 +50,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 .season-table a{white-space:nowrap}
 .season-awards{display:flex;gap:5px;flex-wrap:wrap;max-width:240px}
 .season-award-chip{display:inline-flex;align-items:center;padding:3px 7px;border:1px solid #51421f;border-radius:999px;background:#171309;color:var(--gold);font-size:10px;white-space:nowrap}
+.personal-record-chip{display:inline-flex;align-items:center;padding:3px 7px;border:1px solid #51421f;border-radius:999px;background:#171309;color:var(--gold);font-size:10px;white-space:nowrap}
 .chart-empty{min-height:190px;display:grid;place-items:center;color:var(--mute);text-align:center;border:1px dashed var(--line);border-radius:12px;padding:20px}
 .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin-top:6px}
 .legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--gold);margin-right:6px}
@@ -78,7 +79,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="mark">👤</div>
     <div><h1 id="member-name">Member Profile</h1><div class="sub">Chaos member reputation and recorded activity</div></div>
   </div>
-  <nav class="nav"><a href="/milestones.html">🎖️ Milestones</a><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+  <nav class="nav"><a href="/records.html">🏆 Personal Records</a><a href="/milestones.html">🎖️ Milestones</a><a href="/hall-of-fame.html">🏅 Hall of Fame</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
 </header>
 
 <section class="profile">
@@ -129,6 +130,30 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <div class="status"><span id="season-history-status" class="sub">Loading cross-season history…</span><a href="/seasons.html">Open full season leaderboard →</a></div>
 </section>
 
+<h2>Personal records &amp; best performances</h2>
+<section class="panel">
+  <div class="panel-head">
+    <div><strong>All-time personal bests</strong><div class="sub">Best saved season, day, and calendar-week performance</div></div>
+    <div class="toolbar"><span class="sub" id="personal-record-note">Loading personal records…</span><button class="export-button" id="export-personal-records" type="button" disabled>↓ Export records CSV</button></div>
+  </div>
+  <div class="table-wrap"><table class="season-table">
+    <thead><tr><th>Record</th><th class="num">Personal best</th><th>Season</th><th>Period / date</th></tr></thead>
+    <tbody id="personal-record-rows"><tr><td colspan="4" class="empty">Loading personal records…</td></tr></tbody>
+  </table></div>
+  <h2>Best calendar weeks</h2>
+  <div class="table-wrap"><table class="season-table">
+    <thead><tr><th>Week · Monday–Sunday</th><th>Season</th><th class="num">Reputation gained</th><th class="num">Days with gains</th></tr></thead>
+    <tbody id="best-week-rows"><tr><td colspan="4" class="empty">Loading weekly records…</td></tr></tbody>
+  </table></div>
+  <h2>Recent saved daily totals</h2>
+  <div class="table-wrap"><table class="season-table">
+    <thead><tr><th>Manila date</th><th>Season</th><th class="num">Reputation gained</th><th class="num">Recorded increases</th></tr></thead>
+    <tbody id="daily-record-rows"><tr><td colspan="4" class="empty">Loading daily records…</td></tr></tbody>
+  </table></div>
+  <div class="season-notice" id="daily-record-note">Daily and weekly records use durable totals collected from the personal-record launch date; older 30-day history is not backfilled.</div>
+  <div class="status"><span id="personal-record-status" class="sub">Loading personal records…</span><a href="/records.html">Open all-time records leaderboard →</a></div>
+</section>
+
 <h2>Recorded activity timeline</h2>
 <section class="panel">
   <div class="panel-head"><div><strong>Latest reputation changes</strong><div class="sub">Each row is an increase detected between shared game reads, not a guaranteed individual fight.</div></div><div class="sub" id="event-summary">Loading…</div></div>
@@ -149,7 +174,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const params = new URLSearchParams(location.search);
   const member = (params.get('name') || '').trim();
-  let data = null, seasonData = null, watched = false, loadingOlder = false, exporting = false, exportingSeasons = false;
+  let data = null, seasonData = null, recordsData = null, watched = false, loadingOlder = false, exporting = false, exportingSeasons = false;
 
   function dayKey(date) {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(date);
@@ -337,6 +362,106 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       button.textContent = '↓ Export season history CSV';
     }
   }
+
+  const recordTitles = {
+    season_gain: 'Highest Season Gain',
+    active_days: 'Most Active Days',
+    longest_streak: 'Longest Active Streak',
+    gain_events: 'Most Recorded Increases',
+    best_day_gain: 'Best Single-Day Gain',
+    best_week_gain: 'Best Calendar-Week Gain',
+  };
+  function recordValue(row) {
+    const value = fmt(row.record_value);
+    if (row.record_key === 'active_days' || row.record_key === 'longest_streak') return value + ' days';
+    if (row.record_key === 'gain_events') return value + ' increases';
+    return '+' + value + ' rep';
+  }
+  function recordPeriod(row) {
+    if (row.period_start && row.period_end) {
+      return row.period_start === row.period_end
+        ? dateLabel(row.period_start)
+        : dateLabel(row.period_start) + ' – ' + dateLabel(row.period_end);
+    }
+    if (row.achieved_at) return eventDate(row.achieved_at);
+    return 'Date not recorded';
+  }
+  function renderPersonalRecords() {
+    if (!recordsData) return;
+    const rows = recordsData.records || [];
+    $('personal-record-rows').innerHTML = rows.length ? rows.map(row =>
+      '<tr><td>' + esc(recordTitles[row.record_key] || row.record_title) + '</td>' +
+      '<td class="num gain">' + esc(recordValue(row)) + '</td>' +
+      '<td><a href="/seasons.html?season=' + row.season_number + '">Season ' + row.season_number + '</a></td>' +
+      '<td>' + esc(recordPeriod(row)) + '</td></tr>'
+    ).join('') : '<tr><td colspan="4" class="empty">No personal records have been saved yet. Records start as new season and daily data is collected.</td></tr>';
+
+    const weeks = recordsData.best_weeks || [];
+    $('best-week-rows').innerHTML = weeks.length ? weeks.map(row =>
+      '<tr><td>' + esc(dateLabel(row.week_start)) + ' – ' + esc(dateLabel(row.week_end)) + '</td>' +
+      '<td><a href="/seasons.html?season=' + row.season_number + '">Season ' + row.season_number + '</a></td>' +
+      '<td class="num gain">+' + fmt(row.gain) + '</td><td class="num">' + fmt(row.daily_rows) + '</td></tr>'
+    ).join('') : '<tr><td colspan="4" class="empty">No complete daily totals have been saved yet.</td></tr>';
+
+    const daily = recordsData.recent_daily || [];
+    $('daily-record-rows').innerHTML = daily.length ? daily.map(row =>
+      '<tr><td>' + esc(dateLabel(row.activity_date)) + '</td>' +
+      '<td><a href="/seasons.html?season=' + row.season_number + '">Season ' + row.season_number + '</a></td>' +
+      '<td class="num gain">+' + fmt(row.daily_gain) + '</td><td class="num">' + fmt(row.gain_events) + '</td></tr>'
+    ).join('') : '<tr><td colspan="4" class="empty">Daily tracking begins with the new personal-record ledger.</td></tr>';
+
+    $('personal-record-note').textContent = recordsData.record_count + ' saved personal bests';
+    $('daily-record-note').textContent = recordsData.daily_tracking && recordsData.daily_tracking.note
+      ? recordsData.daily_tracking.note
+      : 'Daily records start with the durable daily ledger.';
+    $('personal-record-status').textContent = 'Updated ' +
+      new Date(recordsData.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
+      ' · ' + (recordsData.daily_tracking ? recordsData.daily_tracking.rows : 0) + ' saved daily rows';
+    $('export-personal-records').disabled = !rows.length && !daily.length;
+  }
+  async function loadPersonalRecords() {
+    if (!member) return;
+    try {
+      const response = await fetch('/api/member-records?name=' + encodeURIComponent(member), {cache:'no-store'});
+      const next = await response.json();
+      if (!response.ok) throw new Error(next.error || 'Personal records API returned HTTP ' + response.status);
+      if (!Array.isArray(next.records) || !Array.isArray(next.recent_daily)) {
+        throw new Error('Personal records response is incomplete.');
+      }
+      recordsData = next;
+      renderPersonalRecords();
+    } catch(error) {
+      $('personal-record-status').textContent = error.message;
+      $('personal-record-status').classList.add('error');
+      if (!recordsData) {
+        $('personal-record-rows').innerHTML = '<tr><td colspan="4" class="empty error">Unable to load personal records.</td></tr>';
+      }
+    }
+  }
+  function exportPersonalRecords() {
+    if (!recordsData) return;
+    const rows = [
+      ['Record','Best value','Season','Period start','Period end','Date achieved'],
+      ...(recordsData.records || []).map(row => [
+        row.record_title,row.record_value,row.season_number,row.period_start || '',
+        row.period_end || '',row.achieved_at ? eventDate(row.achieved_at) : ''
+      ]),
+      [],
+      ['Best calendar weeks'],
+      ['Season','Week start','Week end','Reputation gained','Days with gains'],
+      ...(recordsData.best_weeks || []).map(row => [
+        row.season_number,row.week_start,row.week_end,row.gain,row.daily_rows
+      ]),
+      [],
+      ['Daily totals'],
+      ['Season','Manila date','Reputation gained','Recorded increases'],
+      ...(recordsData.recent_daily || []).map(row => [
+        row.season_number,row.activity_date,row.daily_gain,row.gain_events
+      ]),
+    ];
+    downloadCsv('chaos-' + member.replace(/[^a-z0-9_-]+/gi,'-') + '-personal-records.csv', rows);
+  }
+
   function syncWatch() {
     $('watch-button').hidden = false;
     $('watch-button').textContent = watched ? '★ Remove from watchlist' : '☆ Add to watchlist';
@@ -525,6 +650,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       renderEvents();
       readWatch();
       loadSeasonHistory();
+  loadPersonalRecords();
       $('status-message').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
         ' · ' + data.history.length + ' daily records available';
     } catch (error) {
@@ -537,6 +663,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   $('load-older').addEventListener('click', loadOlder);
   $('export-csv').addEventListener('click', exportHistory);
   $('export-seasons-csv').addEventListener('click', exportSeasonHistory);
+  $('export-personal-records').addEventListener('click', exportPersonalRecords);
   $('watch-button').addEventListener('click', () => {
     if (!member) return;
     try {
