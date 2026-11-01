@@ -59,7 +59,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 <main>
 <header>
   <div class="brand"><div class="mark">🏅</div><div><h1>Hall of Fame</h1><div class="sub">Permanent Chaos season achievements</div></div></div>
-  <nav class="nav"><a href="/records.html">🏆 Personal Records</a><a href="/milestones.html">🎖️ Live Milestones</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
+  <nav class="nav"><a href="/records.html">🏆 Personal Records</a><a href="/milestones.html">🎖️ Live Milestones</a><a href="/seasons.html">🏆 Season Tracking</a><a href="/analytics.html">📊 Season Analytics</a><a href="/season-comparison.html">⚖️ Season Comparison</a><a href="/activity.html">📈 Member Activity</a><a href="/">← Bleed Watch</a></nav>
 </header>
 
 <section class="panel">
@@ -83,12 +83,14 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
 <h2>Award definitions</h2>
 <section class="panel">
   <div class="award-grid">
-    <div class="award-card"><div class="award-title"><span class="award-icon">👑</span> Season Champion</div><div class="award-note">Highest total reputation gained during the season.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">👑</span> Season MVP</div><div class="award-note">Highest total reputation gained during the season. Tied leaders all receive the trophy.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">📈</span> Most Improved</div><div class="award-note">Largest positive increase in reputation gained per calendar day compared with the member's immediately preceding tracked season. Only returning members with positive gains in both seasons qualify.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">🌱</span> Rookie of the Season</div><div class="award-note">Highest season gain among members first present in this season's saved member baseline. Appears only when a preceding season exists.</div></div>
     <div class="award-card"><div class="award-title"><span class="award-icon">⚔️</span> Most Active</div><div class="award-note">Most unique Manila calendar days with a recorded reputation increase.</div></div>
-    <div class="award-card"><div class="award-title"><span class="award-icon">🔥</span> Consistency Award</div><div class="award-note">Longest consecutive streak of calendar days with a recorded increase. Streak tracking starts with this feature; earlier streaks are not reconstructed.</div></div>
-    <div class="award-card"><div class="award-title"><span class="award-icon">📈</span> Most Recorded Increases</div><div class="award-note">Highest number of positive changes detected between shared game reads. These are recorded increases, not guaranteed individual fights.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">🔥</span> Consistency Award</div><div class="award-note">Longest consecutive streak of calendar days with a recorded increase. Streak tracking starts with the durable streak ledger; earlier streaks are not reconstructed.</div></div>
+    <div class="award-card"><div class="award-title"><span class="award-icon">🎯</span> Most Recorded Increases</div><div class="award-note">Highest number of positive changes detected between shared game reads. These are recorded increases, not guaranteed individual fights.</div></div>
   </div>
-  <div class="note">All tied winners receive the award. Members with no positive recorded metric do not receive an award for that category. Award records are permanent once a season closes.</div>
+  <div class="note">All tied winners receive the award. Members with no positive recorded metric do not receive an award. Most Improved uses season-duration-adjusted daily gain rates; Rookie requires a previous season baseline. All trophies are frozen once a season closes.</div>
 </section>
 
 <div class="status"><span id="status" class="sub">Loading Hall of Fame…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
@@ -100,14 +102,23 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = key => ({
     season_champion:'👑',
+    most_improved:'📈',
+    rookie_of_season:'🌱',
     most_active:'⚔️',
     consistency:'🔥',
-    most_recorded_increases:'📈'
+    most_recorded_increases:'🎯'
   }[key] || '🏅');
-  const unit = award => {
-    if (award.award_key === 'most_active' || award.award_key === 'consistency') return ' days';
-    if (award.award_key === 'most_recorded_increases') return ' recorded increases';
-    return ' rep';
+  const metric = award => {
+    const value = Number(award.winning_value || 0);
+    if (award.award_key === 'most_improved') {
+      return '+' + (value / 1000).toLocaleString('en-US', {
+        minimumFractionDigits: 3, maximumFractionDigits: 3
+      }) + ' rep/day';
+    }
+    const unit = award.award_key === 'most_active' || award.award_key === 'consistency'
+      ? ' days'
+      : award.award_key === 'most_recorded_increases' ? ' recorded increases' : ' rep';
+    return fmt(value) + unit;
   };
   function date(value) {
     if (!value) return '—';
@@ -119,9 +130,9 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
       '<div class="leader-row">' +
         '<div class="rank">#' + (index+1) + '</div>' +
         '<div><a class="member" href="/member.html?name=' + encodeURIComponent(row.member) + '">' + esc(row.member) + '</a>' +
-          '<div class="member-meta">' + fmt(row.seasons_awarded) + ' seasons · ' + fmt(row.champion_count) + ' champion title' + (row.champion_count===1?'':'s') + '</div></div>' +
+          '<div class="member-meta">' + fmt(row.seasons_awarded) + ' seasons · ' + fmt(row.champion_count) + ' MVP title' + (row.champion_count===1?'':'s') + '</div></div>' +
         '<div class="metric"><b>' + fmt(row.award_count) + '</b><small>awards</small></div>' +
-        '<div class="metric"><b>' + fmt(row.champion_count) + '</b><small>champions</small></div>' +
+        '<div class="metric"><b>' + fmt(row.champion_count) + '</b><small>MVPs</small></div>' +
       '</div>'
     ).join('') : '<div class="empty">No awards have been recorded yet. Awards appear here after a season closes.</div>';
   }
@@ -132,7 +143,7 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)
       const awardCards = rows.length ? rows.map(award =>
         '<article class="award-card">' +
           '<div class="award-title"><span class="award-icon">' + icon(award.award_key) + '</span>' + esc(award.award_title) + '</div>' +
-          '<div class="award-value">' + fmt(award.winning_value) + esc(unit(award)) + '</div>' +
+          '<div class="award-value">' + esc(metric(award)) + '</div>' +
           '<div class="award-winners">' + award.winners.map(winner =>
             '<a class="winner" href="/member.html?name=' + encodeURIComponent(winner.member) + '">' + esc(winner.member) + '</a>'
           ).join('') + '</div>' +

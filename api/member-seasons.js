@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       if (!memberAwards.has(number)) memberAwards.set(number, []);
       memberAwards.get(number).push({
         award_key: award.award_key,
-        award_title: award.award_title,
+        award_title: award.award_key === 'season_champion' ? 'Season MVP' : award.award_title,
         metric_key: award.metric_key,
         winning_value: Number(award.winning_value || 0),
         decided_at: Number(award.decided_at || 0),

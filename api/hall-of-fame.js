@@ -14,15 +14,18 @@ async function read(path, label) {
 
 const CATEGORY_ORDER = {
   season_champion: 1,
-  most_active: 2,
-  consistency: 3,
-  most_recorded_increases: 4,
+  most_improved: 2,
+  rookie_of_season: 3,
+  most_active: 4,
+  consistency: 5,
+  most_recorded_increases: 6,
 };
 
 function metricLabel(key) {
   if (key === 'active_days') return 'active days';
   if (key === 'longest_streak_days') return 'consecutive active days';
   if (key === 'gain_events') return 'recorded increases';
+  if (key === 'rep_per_day_improvement_milli') return 'rep/day improvement';
   return 'reputation gained';
 }
 
@@ -67,7 +70,7 @@ export default async function handler(req, res) {
       const item = {
         season_number: Number(award.season_number),
         award_key: award.award_key,
-        award_title: award.award_title,
+        award_title: award.award_key === 'season_champion' ? 'Season MVP' : award.award_title,
         metric_key: award.metric_key,
         metric_label: metricLabel(award.metric_key),
         winning_value: Number(award.winning_value || 0),
