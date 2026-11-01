@@ -1,7 +1,8 @@
 -- Add season progression awards without changing the existing rollover transaction.
 -- This AFTER UPDATE trigger runs inside record_chaos_poll's rollover transaction:
--- existing four awards are written first, then these two are added before the
--- rollover Discord payload reads the completed season's award archive.
+-- the existing four awards are written by the poll function, then these two
+-- additional trophies are inserted. A companion BEFORE INSERT trigger on the
+-- rollover outbox refreshes the Discord payload from the completed award archive.
 
 create or replace function public.add_chaos_season_progression_awards()
 returns trigger
