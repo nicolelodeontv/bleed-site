@@ -983,7 +983,7 @@ async function handleMemberRetention(req, res) {
     const dailyDates = Array.from(new Set(daily.map(row =>
       retentionDateOnly(row.activity_date)
     ).filter(Boolean))).sort();
-    const coverageDates = snapshotDates.length ? snapshotDates : dailyDates;
+    const coverageDates = Array.from(new Set([...snapshotDates, ...dailyDates])).sort();
     const coverageStart = coverageDates[0] || dailyDates[0] || null;
     const coverageEnd = coverageDates[coverageDates.length - 1] || dailyDates[dailyDates.length - 1] || null;
 
