@@ -124,7 +124,7 @@ h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;col
     const start = Number(season && season.started_at);
     const end = season && season.ended_at != null ? Number(season.ended_at) : Date.now();
     if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(end)) return null;
-    return Math.max(1,Math.ceil(Math.max(0,end-start)/86400000));
+    return Math.max(1,Math.max(0,end-start)/86400000);
   }
   function profileLink(name) {
     return '<a class="leader-link" href="/member.html?name='+encodeURIComponent(name)+'">'+esc(name)+'</a>';
