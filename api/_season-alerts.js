@@ -985,8 +985,12 @@ function makeAwardRaceDiscordPayload(alert) {
       minimumFractionDigits: unit === 'rep/day' ? 3 : 0,
     }) + (unit ? ' ' + unit : '');
   };
-  const names = rows => (Array.isArray(rows) ? rows : [])
-    .map(name => safeText(name).slice(0, 45)).join(', ');
+  const names = rows => {
+    const all = (Array.isArray(rows) ? rows : [])
+      .map(name => safeText(name).slice(0, 45));
+    const visible = all.slice(0, 8).join(', ');
+    return all.length > 8 ? visible + ' +' + (all.length - 8) + ' more' : visible;
+  };
   const fields = events.map(event => {
     const current = names(event.current_leaders);
     const gained = names(event.gained_leaders);
