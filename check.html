@@ -78,11 +78,11 @@ async function run() {
   $('server').innerHTML = ''; $('browser').innerHTML = '';
   let server = [];
   try {
-    const r = await fetch('/api/health', { cache: 'no-store' });
+    const r = await fetch('/api/status?view=health', { cache: 'no-store' });
     const d = await r.json();
     server = d.checks || [];
     if (!r.ok || d.error) server = [{ name: 'Server health', ok: false, detail: d.error || 'HTTP ' + r.status }];
-  } catch (e) { server = [{ name: 'Server health (/api/health)', ok: false, detail: 'not reachable - is api/health.js deployed?' }]; }
+  } catch (e) { server = [{ name: 'Server health (/api/health)', ok: false, detail: 'not reachable - health check route unavailable' }]; }
   $('server').innerHTML = server.map(row).join('');
   const browser = await browserChecks();
   $('browser').innerHTML = browser.map(row).join('');
