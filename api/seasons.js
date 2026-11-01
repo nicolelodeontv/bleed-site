@@ -1149,7 +1149,387 @@ async function handleMemberRetention(req, res) {
   }
 }
 
+
+function clanHealthDate(value) {
+  return String(value || '').slice(0, 10);
+}
+
+function clanHealthAddDays(value, amount) {
+  const date = new Date(clanHealthDate(value) + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function clanHealthManilaDay(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(value));
+}
+
+function clanHealthClamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function clanHealthWindow(asOf, trackedCount, snapshotByDate, dailyByDate) {
+  const previousStart = clanHealthAddDays(asOf, -14);
+  const previousEnd = clanHealthAddDays(asOf, -8);
+  const currentStart = clanHealthAddDays(asOf, -7);
+  const currentEnd = clanHealthAddDays(asOf, -1);
+
+  const dailyGainsFor = day => {
+    const exact = dailyByDate.get(day);
+    if (exact) return exact;
+    const current = snapshotByDate.get(day);
+    const prior = snapshotByDate.get(clanHealthAddDays(day, -1));
+    if (!current || !prior) return null;
+    const priorTotals = new Map(prior.map(row => [row.member, Number(row.season_gain || 0)]));
+    const gains = new Map();
+    for (const row of current) {
+      const gain = Math.max(0, Number(row.season_gain || 0) - Number(priorTotals.get(row.member) || 0));
+      if (gain > 0) gains.set(row.member, gain);
+    }
+    return gains;
+  };
+
+  const totals = { previous: new Map(), current: new Map() };
+  for (let offset = -14; offset <= -1; offset++) {
+    const day = clanHealthAddDays(asOf, offset);
+    const gains = dailyGainsFor(day);
+    if (!gains) return null;
+    const target = offset <= -8 ? totals.previous : totals.current;
+    for (const [member, gain] of gains.entries()) {
+      target.set(member, (target.get(member) || 0) + gain);
+    }
+  }
+
+  const previousActive = new Set(Array.from(totals.previous.entries())
+    .filter(entry => entry[1] > 0).map(entry => entry[0]));
+  const currentActive = new Set(Array.from(totals.current.entries())
+    .filter(entry => entry[1] > 0).map(entry => entry[0]));
+  const previousGain = Array.from(totals.previous.values()).reduce((sum, value) => sum + value, 0);
+  const currentGain = Array.from(totals.current.values()).reduce((sum, value) => sum + value, 0);
+  const currentRoster = snapshotByDate.get(currentEnd) || [];
+  const rosterSize = Math.max(Number(trackedCount || 0), currentRoster.length, 1);
+  const participation = clanHealthClamp((currentActive.size / rosterSize) * 100, 0, 100);
+
+  const gainMomentum = previousGain > 0
+    ? clanHealthClamp((currentGain / previousGain) * 100, 0, 100)
+    : (currentGain > 0 ? 100 : 50);
+  const activeMomentum = previousActive.size > 0
+    ? clanHealthClamp((currentActive.size / previousActive.size) * 100, 0, 100)
+    : (currentActive.size > 0 ? 100 : 50);
+  const momentum = (gainMomentum + activeMomentum) / 2;
+
+  const rankedGains = Array.from(totals.current.entries())
+    .filter(entry => entry[1] > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const topCount = rankedGains.length ? Math.max(1, Math.ceil(rankedGains.length * 0.2)) : 0;
+  const topGain = rankedGains.slice(0, topCount).reduce((sum, entry) => sum + entry[1], 0);
+  const topShare = currentGain > 0 ? topGain / currentGain : null;
+  const balance = topShare == null
+    ? 50
+    : clanHealthClamp(((1 - topShare) / 0.8) * 100, 0, 100);
+
+  let retained = 0;
+  for (const member of previousActive) if (currentActive.has(member)) retained++;
+  const retention = previousActive.size > 0
+    ? clanHealthClamp((retained / previousActive.size) * 100, 0, 100)
+    : 50;
+
+  const score = Math.round(
+    participation * 0.35 +
+    momentum * 0.25 +
+    balance * 0.20 +
+    retention * 0.20
+  );
+  const level = score < 45 ? 'high' : score < 70 ? 'watch' : 'healthy';
+
+  return {
+    as_of: asOf,
+    score,
+    level,
+    components: {
+      participation: {
+        score: Math.round(participation),
+        weight: 35,
+        value: currentActive.size,
+        denominator: rosterSize,
+        percent: Math.round(participation),
+      },
+      momentum: {
+        score: Math.round(momentum),
+        weight: 25,
+        current_gain: currentGain,
+        previous_gain: previousGain,
+        current_active: currentActive.size,
+        previous_active: previousActive.size,
+        gain_score: Math.round(gainMomentum),
+        active_score: Math.round(activeMomentum),
+      },
+      balance: {
+        score: Math.round(balance),
+        weight: 20,
+        top_share_percent: topShare == null ? null : Math.round(topShare * 100),
+        top_members: rankedGains.slice(0, topCount).map(entry => ({
+          member: entry[0], gain: entry[1],
+        })),
+        active_members: currentActive.size,
+        current_gain: currentGain,
+      },
+      retention: {
+        score: Math.round(retention),
+        weight: 20,
+        retained_members: retained,
+        previous_active_members: previousActive.size,
+        current_active_members: currentActive.size,
+        percent: Math.round(retention),
+      },
+    },
+    metrics: {
+      current_7d_gain: currentGain,
+      previous_7d_gain: previousGain,
+      current_7d_active_members: currentActive.size,
+      previous_7d_active_members: previousActive.size,
+      tracked_members: rosterSize,
+      participation_percent: Math.round(participation),
+      top_20_percent_gain_share: topShare == null ? null : Math.round(topShare * 100),
+      retained_members: retained,
+    },
+  };
+}
+
+export async function getChaosClanHealth() {
+  if (!SUPABASE_URL || !KEY) throw new Error('clan health is not configured');
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const trackingStart = clanHealthAddDays(today, -75);
+  const seasonRows = await read(
+    '/chaos_seasons?select=season_number,started_at,ended_at,status&order=season_number.desc&limit=100',
+    'Clan health season history'
+  );
+  const seasons = Array.isArray(seasonRows) ? seasonRows : [];
+  const season = seasons.find(row => row.status === 'active') || seasons[0] || null;
+  if (!season) throw new Error('No tracked Chaos season was found.');
+
+  const seasonNumber = Number(season.season_number);
+  const [statsRaw, dailyRaw, rankingsRaw] = await Promise.all([
+    read('/chaos_season_member_stats?select=member,season_gain,gain_events,active_days,last_gain_at,last_gain_day,updated_at&season_number=eq.' +
+      seasonNumber + '&order=member.asc&limit=1000', 'Clan health member totals'),
+    read('/chaos_season_daily_stats?select=member,activity_date,daily_gain,gain_events&season_number=eq.' +
+      seasonNumber + '&activity_date=gte.' + trackingStart + '&order=activity_date.asc,member.asc&limit=50000',
+      'Clan health daily activity'),
+    read('/chaos_season_daily_rankings?select=member,snapshot_date,season_gain,gain_events,active_days,rank_position&season_number=eq.' +
+      seasonNumber + '&snapshot_date=gte.' + trackingStart + '&order=snapshot_date.asc,rank_position.asc&limit=50000',
+      'Clan health daily rankings'),
+  ]);
+
+  const stats = Array.isArray(statsRaw) ? statsRaw : [];
+  const daily = Array.isArray(dailyRaw) ? dailyRaw : [];
+  const rankingRows = Array.isArray(rankingsRaw) ? rankingsRaw : [];
+  const snapshotByDate = new Map();
+  for (const row of rankingRows) {
+    const day = clanHealthDate(row.snapshot_date);
+    if (!day) continue;
+    if (!snapshotByDate.has(day)) snapshotByDate.set(day, []);
+    snapshotByDate.get(day).push({
+      member: String(row.member || ''),
+      season_gain: Number(row.season_gain || 0),
+      gain_events: Number(row.gain_events || 0),
+      active_days: Number(row.active_days || 0),
+    });
+  }
+  const snapshotDates = Array.from(snapshotByDate.keys()).sort();
+  const dailyByDate = new Map();
+  for (const row of daily) {
+    const day = clanHealthDate(row.activity_date);
+    const member = String(row.member || '');
+    if (!day || !member) continue;
+    if (!dailyByDate.has(day)) dailyByDate.set(day, new Map());
+    dailyByDate.get(day).set(member, Number(row.daily_gain || 0));
+  }
+
+  const history = [];
+  const candidateDates = snapshotDates.map(day => clanHealthAddDays(day, 1))
+    .filter(day => day <= today);
+  for (const asOf of candidateDates) {
+    const previousDay = clanHealthAddDays(asOf, -1);
+    const previousSnapshot = snapshotByDate.get(previousDay);
+    if (!previousSnapshot) continue;
+    const trackedCount = previousSnapshot.length;
+    const item = clanHealthWindow(asOf, trackedCount, snapshotByDate, dailyByDate);
+    if (item) history.push(item);
+  }
+  const visibleHistory = history.slice(-30);
+  const current = visibleHistory.length &&
+    visibleHistory[visibleHistory.length - 1].as_of === today
+    ? visibleHistory[visibleHistory.length - 1] : null;
+
+  const snapshotDaySet = new Set(snapshotDates);
+  const latestSnapshot = snapshotDates.length ? snapshotDates[snapshotDates.length - 1] : null;
+  let consecutiveSnapshotDays = 0;
+  if (latestSnapshot) {
+    let cursor = latestSnapshot;
+    while (snapshotDaySet.has(cursor)) {
+      consecutiveSnapshotDays++;
+      cursor = clanHealthAddDays(cursor, -1);
+    }
+  }
+
+  const seasonStartDay = clanHealthManilaDay(season.started_at) || clanHealthDate(season.started_at);
+  const members = stats.map(row => {
+    const member = String(row.member || '');
+    const lastGainDay = clanHealthDate(row.last_gain_day) || clanHealthManilaDay(row.last_gain_at);
+    const referenceDay = lastGainDay || seasonStartDay || today;
+    const quietDays = Math.max(0, Math.floor(
+      (new Date(today + 'T00:00:00Z').getTime() -
+       new Date(referenceDay + 'T00:00:00Z').getTime()) / 86400000
+    ));
+    const hasGain = !!lastGainDay || Number(row.season_gain || 0) > 0;
+    const status = quietDays >= 14 ? 'long_inactive'
+      : quietDays >= 7 ? 'inactive'
+        : quietDays >= 3 && hasGain ? 'cooling'
+          : hasGain ? 'active' : 'not_yet_active';
+    return {
+      member,
+      season_gain: Number(row.season_gain || 0),
+      gain_events: Number(row.gain_events || 0),
+      active_days: Number(row.active_days || 0),
+      last_gain_day: lastGainDay,
+      quiet_days: quietDays,
+      status,
+    };
+  }).sort((a, b) =>
+    a.quiet_days - b.quiet_days ||
+    b.season_gain - a.season_gain ||
+    a.member.localeCompare(b.member)
+  );
+
+  const recentCutoff = clanHealthAddDays(today, -6);
+  const recentlyActive = members.filter(row =>
+    row.last_gain_day && row.last_gain_day >= recentCutoff
+  ).length;
+  const scoreAvailable = !!current;
+  const previousScore = visibleHistory.length > 1
+    ? visibleHistory[visibleHistory.length - 2] : null;
+  const inactive14 = members.filter(row => row.quiet_days >= 14).length;
+  const flags = [];
+  if (current) {
+    const m = current.metrics;
+    if (m.participation_percent < 20) {
+      flags.push({ key: 'low_participation', level: 'high', title: 'Low participation',
+        detail: m.current_7d_active_members + ' of ' + m.tracked_members + ' tracked members contributed during the last seven completed days.' });
+    }
+    if (m.previous_7d_active_members >= 3 &&
+        m.current_7d_active_members < m.previous_7d_active_members * 0.7) {
+      flags.push({ key: 'participation_drop', level: 'high', title: 'Participation is falling',
+        detail: m.previous_7d_active_members + ' active members in the prior week versus ' +
+          m.current_7d_active_members + ' in the latest completed week.' });
+    }
+    if (m.previous_7d_gain >= 50 && m.current_7d_gain <= m.previous_7d_gain * 0.6) {
+      flags.push({ key: 'gain_decline', level: 'high', title: 'Reputation momentum has dropped',
+        detail: 'Weekly gains fell from ' + m.previous_7d_gain.toLocaleString('en-US') +
+          ' to ' + m.current_7d_gain.toLocaleString('en-US') + ' rep.' });
+    }
+    if (m.current_7d_active_members >= 3 && m.top_20_percent_gain_share != null &&
+        m.top_20_percent_gain_share >= 75) {
+      flags.push({ key: 'concentrated_contribution', level: 'warning', title: 'Gains are concentrated',
+        detail: 'The top 20% of active contributors account for ' +
+          m.top_20_percent_gain_share + '% of the latest week’s gains.' });
+    }
+    if (members.length >= 5 && inactive14 / members.length >= 0.5) {
+      flags.push({ key: 'widespread_inactivity', level: 'warning', title: 'Widespread inactivity',
+        detail: inactive14 + ' of ' + members.length + ' tracked members have no recorded gain for 14 or more days.' });
+    }
+  }
+
+  let riskLevel = 'building';
+  if (current) {
+    riskLevel = current.score < 45 || flags.filter(item => item.level === 'high').length >= 2
+      ? 'high'
+      : current.score < 70 || flags.length > 0 ? 'watch' : 'healthy';
+  }
+
+  return {
+    generated_at: Date.now(),
+    timezone: 'Asia/Manila',
+    clan: 'Chaos',
+    season: {
+      season_number: seasonNumber,
+      status: season.status,
+      started_at: Number(season.started_at || 0),
+      started_day: seasonStartDay,
+    },
+    health: {
+      available: scoreAvailable,
+      score: current ? current.score : null,
+      risk_level: riskLevel,
+      as_of: current ? current.as_of : null,
+      previous_score: previousScore ? previousScore.score : null,
+      score_change: current && previousScore ? current.score - previousScore.score : null,
+      components: current ? current.components : null,
+      metrics: current ? current.metrics : null,
+      flags,
+    },
+    summary: {
+      tracked_members: members.length,
+      recently_active_7d: recentlyActive,
+      active_7d: current ? current.metrics.current_7d_active_members : null,
+      weekly_gain: current ? current.metrics.current_7d_gain : null,
+      inactive_14d: inactive14,
+      top_20_percent_gain_share: current ? current.metrics.top_20_percent_gain_share : null,
+    },
+    coverage: {
+      snapshot_days: snapshotDates.length,
+      consecutive_snapshot_days: consecutiveSnapshotDays,
+      required_snapshot_days: 15,
+      baseline_percent: Math.min(100, Math.round(consecutiveSnapshotDays / 15 * 100)),
+      first_snapshot: snapshotDates[0] || null,
+      last_snapshot: latestSnapshot,
+      daily_ledger_days: dailyByDate.size,
+      score_ready: scoreAvailable,
+      note: scoreAvailable
+        ? 'Fifteen consecutive daily ranking snapshots support the two completed seven-day windows. Daily ledger rows are preferred; consecutive snapshot deltas fill dates without daily rows.'
+        : 'The score remains hidden until the tracker has 15 consecutive daily ranking snapshots. No activity is inferred outside confirmed daily coverage.',
+    },
+    history: visibleHistory.map(item => ({
+      date: item.as_of,
+      score: item.score,
+      level: item.level,
+    })),
+    members,
+    notes: {
+      score: 'The 0–100 score weights participation 35%, activity momentum 25%, contribution balance 20%, and seven-day member retention 20%.',
+      participation: 'Members with a positive recorded gain in the latest seven completed Manila calendar days divided by the tracked roster in the final snapshot.',
+      momentum: 'The average of week-over-week reputation-gain momentum and active-member-count momentum. Each component is capped at 100.',
+      balance: 'Measures how evenly the latest week’s gains are shared. The top 20% of active contributors are compared with an even share; a week with no gains receives a neutral 50 for this component.',
+      retention: 'The percentage of members active in the previous completed seven-day period who were also active in the latest completed seven-day period.',
+      baseline: 'A complete 14-day activity comparison needs 15 consecutive daily ranking snapshots so the first day’s gain can be derived from the prior cumulative snapshot.',
+      scope: 'This dashboard covers the Chaos member roster only. Other clans do not yet have the same durable member-level daily history.',
+    },
+  };
+}
+
+async function handleClanHealth(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+  try {
+    const data = await getChaosClanHealth();
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=30');
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(502).json({
+      error: error && error.message ? error.message : 'clan health is unavailable',
+    });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.query.view === 'health') return handleClanHealth(req, res);
   if (req.query.view === 'retention') return handleMemberRetention(req, res);
   if (req.query.view === 'comparison') return handleSeasonComparison(req, res);
   if (req.query.view === 'analytics') return handleSeasonAnalytics(req,res);
