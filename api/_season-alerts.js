@@ -774,3 +774,351 @@ export async function dispatchChaosWeeklySeasonReport() {
     };
   }
 }
+
+
+// ---------- Live Season Awards Race alerts ----------
+// The snapshot is compared and queued transactionally by Supabase. The first
+// healthy read seeds state without announcing the existing leader as "new".
+const AWARD_RACE_MAX_STATS_AGE_MS = 10 * 60 * 1000;
+
+async function readAwardRaceJson(path, label) {
+  const response = await fetch(REST + path, {
+    headers: H,
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 250);
+    throw new Error(label + ' read failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  return response.json();
+}
+
+function awardRaceElapsedDays(season, now) {
+  const start = Number(season && season.started_at);
+  const end = season && season.ended_at != null ? Number(season.ended_at) : now;
+  if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(end)) return null;
+  return Math.max(1, (end - start) / 86400000);
+}
+
+function awardRaceLeaders(title, unit, rows, getValue) {
+  const candidates = rows.map(row => ({
+    member: String(row.member || ''),
+    value: Number(getValue(row) || 0),
+  })).filter(row => row.member && Number.isFinite(row.value) && row.value > 0)
+    .sort((a, b) => b.value - a.value || a.member.localeCompare(b.member));
+
+  if (!candidates.length) {
+    return { title, unit, available: false, leaders: [], winning_value: null };
+  }
+
+  const best = candidates[0].value;
+  return {
+    title,
+    unit,
+    available: true,
+    leaders: candidates.filter(row => Math.abs(row.value - best) < 0.0000001)
+      .map(row => row.member).sort(),
+    winning_value: best,
+  };
+}
+
+function buildAwardRaceSnapshot(season, previousSeason, currentRows, previousRows, now) {
+  const awards = {
+    season_mvp: awardRaceLeaders('Season MVP', 'rep', currentRows, row => row.season_gain),
+    most_active: awardRaceLeaders('Most Active', 'days', currentRows, row => row.active_days),
+    consistency: awardRaceLeaders('Consistency Award', 'days', currentRows, row => row.longest_streak_days),
+    most_recorded_increases: awardRaceLeaders(
+      'Most Recorded Increases', 'recorded increases', currentRows, row => row.gain_events
+    ),
+  };
+
+  if (previousSeason) {
+    const currentDays = awardRaceElapsedDays(season, now);
+    const previousDays = awardRaceElapsedDays(previousSeason, now);
+    const previousByMember = new Map(previousRows.map(row => [String(row.member), row]));
+    const improvements = currentDays && previousDays
+      ? currentRows.map(row => {
+          const previous = previousByMember.get(String(row.member));
+          if (!previous || Number(row.season_gain || 0) <= 0 ||
+              Number(previous.season_gain || 0) <= 0) return null;
+          const value = Math.round((
+            Number(row.season_gain || 0) / currentDays -
+            Number(previous.season_gain || 0) / previousDays
+          ) * 1000) / 1000;
+          return value > 0 ? { member: row.member, value } : null;
+        }).filter(Boolean)
+      : [];
+    awards.most_improved = awardRaceLeaders(
+      'Most Improved', 'rep/day', improvements, row => row.value
+    );
+
+    const previousMembers = new Set(previousRows.map(row => String(row.member)));
+    const rookies = currentRows.filter(row =>
+      Number(row.season_gain || 0) > 0 && !previousMembers.has(String(row.member))
+    );
+    awards.rookie_of_season = awardRaceLeaders(
+      'Rookie of the Season', 'rep', rookies, row => row.season_gain
+    );
+  } else {
+    awards.most_improved = {
+      title: 'Most Improved', unit: 'rep/day', available: false, leaders: [], winning_value: null,
+    };
+    awards.rookie_of_season = {
+      title: 'Rookie of the Season', unit: 'rep', available: false, leaders: [], winning_value: null,
+    };
+  }
+
+  return {
+    season_number: Number(season.season_number),
+    observed_at: now,
+    awards,
+  };
+}
+
+export async function queueChaosAwardRaceAlert() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+
+  const seasonsQuery = new URLSearchParams({
+    select: 'season_number,started_at,ended_at,status',
+    order: 'season_number.desc',
+    limit: '100',
+  });
+  const seasons = await readAwardRaceJson(
+    '/chaos_seasons?' + seasonsQuery.toString(), 'Award race season history'
+  );
+  const seasonList = Array.isArray(seasons) ? seasons : [];
+  const active = seasonList.find(row => row.status === 'active');
+  if (!active) return { status: 'no_active_season' };
+
+  const previous = seasonList.filter(row =>
+    Number(row.season_number) < Number(active.season_number)
+  ).sort((a, b) => Number(b.season_number) - Number(a.season_number))[0] || null;
+
+  const statsQuery = new URLSearchParams({
+    select: 'season_number,member,season_gain,gain_events,active_days,longest_streak_days,updated_at',
+    season_number: 'eq.' + Number(active.season_number),
+    order: 'member.asc',
+    limit: '1000',
+  });
+  const currentRowsRaw = await readAwardRaceJson(
+    '/chaos_season_member_stats?' + statsQuery.toString(), 'Current award race standings'
+  );
+  const currentRows = Array.isArray(currentRowsRaw) ? currentRowsRaw : [];
+  if (!currentRows.length) return { status: 'no_member_stats' };
+
+  const latestStatsAt = currentRows.reduce((latest, row) =>
+    Math.max(latest, Number(row.updated_at || 0)), 0);
+  const now = Date.now();
+  if (!latestStatsAt || now - latestStatsAt > AWARD_RACE_MAX_STATS_AGE_MS) {
+    return {
+      status: 'stale_stats',
+      season_number: Number(active.season_number),
+      latest_stats_at: latestStatsAt || null,
+    };
+  }
+
+  let previousRows = [];
+  if (previous) {
+    const previousQuery = new URLSearchParams({
+      select: 'season_number,member,season_gain',
+      season_number: 'eq.' + Number(previous.season_number),
+      order: 'member.asc',
+      limit: '1000',
+    });
+    const previousRaw = await readAwardRaceJson(
+      '/chaos_season_member_stats?' + previousQuery.toString(), 'Previous award race standings'
+    );
+    previousRows = Array.isArray(previousRaw) ? previousRaw : [];
+  }
+
+  const snapshot = buildAwardRaceSnapshot(active, previous, currentRows, previousRows, now);
+  const response = await fetch(REST + '/rpc/record_chaos_award_race_snapshot', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({
+      p_season_number: Number(active.season_number),
+      p_snapshot: snapshot,
+      p_now: now,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 350);
+    throw new Error('Award race snapshot failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const result = await response.json();
+  return result && typeof result === 'object' ? result : { status: 'unknown' };
+}
+
+async function updateAwardRaceClaim(alert, patch) {
+  const query = new URLSearchParams({
+    id: 'eq.' + alert.id,
+    status: 'eq.sending',
+    attempt_count: 'eq.' + alert.attempt_count,
+  });
+  const response = await fetch(REST + '/chaos_award_race_alerts?' + query.toString(), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    throw new Error('Award race alert status update failed: HTTP ' + response.status);
+  }
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length === 1;
+}
+
+function makeAwardRaceDiscordPayload(alert) {
+  const payload = alert.payload && typeof alert.payload === 'object' ? alert.payload : {};
+  const season = Number(payload.season_number || alert.season_number);
+  const events = Array.isArray(payload.events) ? payload.events.slice(0, 6) : [];
+  const formatValue = (value, unit) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return number.toLocaleString('en-US', {
+      maximumFractionDigits: 3,
+      minimumFractionDigits: unit === 'rep/day' ? 3 : 0,
+    }) + (unit ? ' ' + unit : '');
+  };
+  const names = rows => (Array.isArray(rows) ? rows : [])
+    .map(name => safeText(name).slice(0, 45)).join(', ');
+  const fields = events.map(event => {
+    const current = names(event.current_leaders);
+    const gained = names(event.gained_leaders);
+    const lost = names(event.lost_leaders);
+    const title = safeText(event.award_title || event.award_key || 'Season award').slice(0, 100);
+    let headline;
+    if (event.event_type === 'tied_for_first') {
+      headline = '🤝 **Tied for first:** ' + current;
+    } else if (event.event_type === 'tie_broken') {
+      headline = '⚡ **Tie broken — outright leader:** ' + current;
+    } else if (event.event_type === 'tie_changed') {
+      headline = '🔄 **First-place tie changed:** ' + current;
+    } else {
+      headline = '🥇 **New leader:** ' + current;
+    }
+
+    const lines = [headline];
+    if (gained && event.event_type !== 'lead_change') {
+      lines.push('Joined first place: ' + gained);
+    }
+    if (lost) {
+      lines.push('No longer first: ' + lost);
+    }
+    lines.push('Leading score: **' +
+      formatValue(event.winning_value, String(event.unit || '')) + '**');
+    return { name: title, value: lines.join('\n').slice(0, 1024), inline: false };
+  });
+
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      color: 0xf5c542,
+      title: '🏁 Live Season ' + season + ' award race changes',
+      description: events.length
+        ? 'The provisional first-place standings changed. These are live standings, not final trophies.'
+        : 'The live award race was updated.',
+      fields,
+      footer: { text: 'Bleed Watch · provisional awards · Asia/Manila' },
+      timestamp: new Date(Number(payload.generated_at || alert.created_at || Date.now())).toISOString(),
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'View Live Awards Race',
+        url: SITE + '/awards-race.html',
+      }, {
+        type: 2,
+        style: 5,
+        label: 'Season Leaderboard',
+        url: SITE + '/seasons.html?season=' + encodeURIComponent(season),
+      }],
+    }],
+    // Reusing the alert ID prevents a timed-out retry from duplicating the Discord message.
+    nonce: 'ar-' + String(alert.id),
+    enforce_nonce: true,
+  };
+}
+
+export async function dispatchChaosAwardRaceAlert() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const claimResponse = await fetch(REST + '/rpc/claim_chaos_award_race_alert', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!claimResponse.ok) {
+    const detail = (await claimResponse.text()).slice(0, 350);
+    throw new Error('Award race alert claim failed: HTTP ' + claimResponse.status +
+      (detail ? ' · ' + detail : ''));
+  }
+
+  const claimed = await claimResponse.json();
+  const alert = Array.isArray(claimed) ? claimed[0] : null;
+  if (!alert) return { status: 'idle' };
+
+  try {
+    const messageId = await deliver(makeAwardRaceDiscordPayload(alert));
+    const sentAt = Date.now();
+    const marked = await updateAwardRaceClaim(alert, {
+      status: 'sent',
+      discord_message_id: messageId,
+      sent_at: sentAt,
+      lease_until: 0,
+      last_error: null,
+      updated_at: sentAt,
+    });
+    if (!marked) {
+      console.error('Award race alert delivered but outbox status was not confirmed', alert.id);
+      return { status: 'sent_unconfirmed', alert_id: Number(alert.id) };
+    }
+    return {
+      status: 'sent',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      events: Array.isArray(alert.payload && alert.payload.events)
+        ? alert.payload.events.length : 0,
+      message_id: messageId,
+      attempt_count: Number(alert.attempt_count),
+    };
+  } catch (error) {
+    const attempt = Math.max(1, Number(alert.attempt_count) || 1);
+    const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+    const failureAt = Date.now();
+    const message = String(error && error.message ? error.message : error).slice(0, 500);
+    try {
+      await updateAwardRaceClaim(alert, {
+        status: 'failed',
+        next_attempt_at: failureAt + backoff,
+        lease_until: 0,
+        last_error: message,
+        updated_at: failureAt,
+      });
+    } catch (updateError) {
+      console.error('Could not schedule award race alert retry:',
+        String(updateError.message || updateError).slice(0, 300));
+    }
+    console.error('Season award race Discord alert failed:', message);
+    return {
+      status: 'retry_scheduled',
+      alert_id: Number(alert.id),
+      season_number: Number(alert.season_number),
+      attempt_count: attempt,
+      retry_after_ms: backoff,
+    };
+  }
+}
