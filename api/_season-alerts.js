@@ -1126,3 +1126,261 @@ export async function dispatchChaosAwardRaceAlert() {
     };
   }
 }
+
+
+// Member retention alerts use the active-season ledger. A member is queued
+// once on first crossing 7 quiet days and once again on crossing 14 days.
+function retentionAlertManilaDay(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(value));
+}
+
+function retentionAlertDayDiff(from, to) {
+  const a = new Date(String(from).slice(0, 10) + 'T00:00:00Z').getTime();
+  const b = new Date(String(to).slice(0, 10) + 'T00:00:00Z').getTime();
+  return Number.isFinite(a) && Number.isFinite(b)
+    ? Math.max(0, Math.floor((b - a) / 86400000)) : 0;
+}
+
+export async function queueChaosMemberRetentionAlerts() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+
+  const now = Date.now();
+  const seasons = await readAwardRaceJson(
+    '/chaos_seasons?select=season_number,started_at,status&order=season_number.desc&limit=100',
+    'Member retention season history'
+  );
+  const seasonList = Array.isArray(seasons) ? seasons : [];
+  const active = seasonList.find(row => row.status === 'active');
+  if (!active) return { status: 'no_active_season' };
+
+  const seasonNumber = Number(active.season_number);
+  const query = new URLSearchParams({
+    select: 'member,last_gain_at,last_gain_day,updated_at',
+    season_number: 'eq.' + seasonNumber,
+    order: 'member.asc',
+    limit: '1000',
+  });
+  const raw = await readAwardRaceJson(
+    '/chaos_season_member_stats?' + query.toString(),
+    'Member retention statistics'
+  );
+  const rows = Array.isArray(raw) ? raw : [];
+  if (!rows.length) return { status: 'no_member_stats' };
+
+  const latestStatsAt = rows.reduce((latest, row) =>
+    Math.max(latest, Number(row.updated_at || 0)), 0);
+  if (!latestStatsAt || now - latestStatsAt > 10 * 60 * 1000) {
+    return { status: 'stale_stats', season_number: seasonNumber, latest_stats_at: latestStatsAt || null };
+  }
+
+  const today = retentionAlertManilaDay(now);
+  const seasonStartDay = retentionAlertManilaDay(active.started_at);
+  const pending = [];
+  for (const row of rows) {
+    const name = String(row.member || '').trim();
+    if (!name) continue;
+    const lastGainAt = row.last_gain_at == null ? null : Number(row.last_gain_at);
+    const referenceDay = row.last_gain_day
+      ? String(row.last_gain_day).slice(0, 10)
+      : retentionAlertManilaDay(lastGainAt) || seasonStartDay;
+    if (!referenceDay) continue;
+    const inactivityDays = retentionAlertDayDiff(referenceDay, today);
+    if (inactivityDays < 7) continue;
+    const thresholdDays = inactivityDays >= 14 ? 14 : 7;
+    pending.push({
+      season_number: seasonNumber,
+      member: name,
+      threshold_days: thresholdDays,
+      last_gain_at: lastGainAt,
+      inactivity_days: inactivityDays,
+      status: 'pending',
+      attempt_count: 0,
+      next_attempt_at: now,
+      lease_until: 0,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  if (!pending.length) return { status: 'idle', season_number: seasonNumber, eligible: 0 };
+  const insertQuery = new URLSearchParams({
+    on_conflict: 'season_number,member,threshold_days',
+  });
+  const response = await fetch(REST + '/chaos_member_retention_alerts?' + insertQuery.toString(), {
+    method: 'POST',
+    headers: { ...H, Prefer: 'resolution=ignore-duplicates,return=representation' },
+    body: JSON.stringify(pending),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 350);
+    throw new Error('Member retention alert queue failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const inserted = await response.json();
+  const count = Array.isArray(inserted) ? inserted.length : 0;
+  return {
+    status: count ? 'queued' : 'idle',
+    season_number: seasonNumber,
+    eligible: pending.length,
+    queued: count,
+  };
+}
+
+async function updateMemberRetentionClaims(alerts, patch) {
+  const ids = alerts.map(alert => Number(alert.id)).filter(Number.isSafeInteger);
+  if (!ids.length) return false;
+  const query = new URLSearchParams({
+    id: 'in.(' + ids.join(',') + ')',
+    status: 'eq.sending',
+  });
+  const response = await fetch(REST + '/chaos_member_retention_alerts?' + query.toString(), {
+    method: 'PATCH',
+    headers: { ...H, Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error('Member retention alert status update failed: HTTP ' + response.status);
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length === ids.length;
+}
+
+function makeMemberRetentionDiscordPayload(alerts) {
+  const season = Number(alerts[0] && alerts[0].season_number || 0);
+  const fourteen = alerts.filter(row => Number(row.threshold_days) >= 14);
+  const seven = alerts.filter(row => Number(row.threshold_days) < 14);
+  const lines = rows => {
+    const visible = rows.slice(0, 16).map(row =>
+      '• **' + safeText(row.member).slice(0, 48) + '** · ' +
+      Number(row.inactivity_days || row.threshold_days).toLocaleString('en-US') + ' days'
+    );
+    if (rows.length > visible.length) {
+      visible.push('+' + (rows.length - visible.length) + ' more members · open the retention dashboard');
+    }
+    return visible.length ? visible.join('\n') : 'None';
+  };
+  const fields = [];
+  if (fourteen.length) {
+    fields.push({
+      name: '🔴 14+ days without a recorded gain · ' + fourteen.length,
+      value: lines(fourteen).slice(0, 1024),
+      inline: false,
+    });
+  }
+  if (seven.length) {
+    fields.push({
+      name: '🟡 7–13 days without a recorded gain · ' + seven.length,
+      value: lines(seven).slice(0, 1024),
+      inline: false,
+    });
+  }
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      color: fourteen.length ? 0xff6975 : 0xf5c542,
+      title: '🧭 Member retention watch · Season ' + season,
+      description: 'These members have crossed an inactivity threshold based on their last recorded positive reputation gain. This is a grouped digest, not a live online-status check.',
+      fields,
+      footer: { text: 'Bleed Watch · retention thresholds · Asia/Manila' },
+      timestamp: new Date().toISOString(),
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'Open Member Retention',
+        url: SITE + '/retention.html',
+      }, {
+        type: 2,
+        style: 5,
+        label: 'Member Activity',
+        url: SITE + '/activity.html',
+      }],
+    }],
+    // The same claimed batch reuses this nonce on a delivery retry.
+    nonce: 'mr-' + String(alerts[0].id).slice(-9) + '-' +
+      String(alerts[alerts.length - 1].id).slice(-9),
+    enforce_nonce: true,
+  };
+}
+
+export async function dispatchChaosMemberRetentionAlerts() {
+  if (!SUPABASE_URL || !KEY) {
+    return { status: 'not_configured', reason: 'Supabase server credentials are missing' };
+  }
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const claimResponse = await fetch(REST + '/rpc/claim_chaos_member_retention_alerts', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_limit: 30, p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!claimResponse.ok) {
+    const detail = (await claimResponse.text()).slice(0, 350);
+    throw new Error('Member retention alert claim failed: HTTP ' + claimResponse.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const claimed = await claimResponse.json();
+  const alerts = Array.isArray(claimed) ? claimed : [];
+  if (!alerts.length) return { status: 'idle' };
+
+  try {
+    const messageId = await deliver(makeMemberRetentionDiscordPayload(alerts));
+    const sentAt = Date.now();
+    const marked = await updateMemberRetentionClaims(alerts, {
+      status: 'sent',
+      discord_message_id: messageId,
+      sent_at: sentAt,
+      lease_until: 0,
+      last_error: null,
+      updated_at: sentAt,
+    });
+    if (!marked) {
+      console.error('Member retention digest delivered but outbox status was not confirmed',
+        alerts.map(row => row.id));
+      return { status: 'sent_unconfirmed', alerts: alerts.length };
+    }
+    return {
+      status: 'sent',
+      season_number: Number(alerts[0].season_number),
+      alerts: alerts.length,
+      members: new Set(alerts.map(row => row.member)).size,
+      message_id: messageId,
+      attempt_count: Math.max(...alerts.map(row => Number(row.attempt_count) || 1)),
+    };
+  } catch (error) {
+    const attempt = Math.max(1, ...alerts.map(row => Number(row.attempt_count) || 1));
+    const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+    const failureAt = Date.now();
+    const message = String(error && error.message ? error.message : error).slice(0, 500);
+    try {
+      await updateMemberRetentionClaims(alerts, {
+        status: 'failed',
+        next_attempt_at: failureAt + backoff,
+        lease_until: 0,
+        last_error: message,
+        updated_at: failureAt,
+      });
+    } catch (updateError) {
+      console.error('Could not schedule member retention alert retry:',
+        String(updateError.message || updateError).slice(0, 300));
+    }
+    console.error('Member retention Discord digest failed:', message);
+    return {
+      status: 'retry_scheduled',
+      alerts: alerts.length,
+      attempt_count: attempt,
+      retry_after_ms: backoff,
+    };
+  }
+}
