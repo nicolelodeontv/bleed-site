@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clan Health · Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e;--blue:#8aa9ff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.11),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1240px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#29200a,#151107);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a,button{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:12px;color:var(--text)}
+.nav .active{border-color:#51421f;background:#171309;color:var(--gold)}
+button{cursor:pointer;font:inherit}button:hover{border-color:#545466}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.panel h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:0 0 7px;font-weight:700}
+.panel p{margin:0 0 10px;color:var(--mute);font-size:12px}
+.notice{padding:13px 15px;border:1px solid #3b321c;border-radius:12px;background:#151209;color:#d5c18a;font-size:12px;margin:0 0 16px}
+.notice.neutral{border-color:var(--line);background:#101015;color:var(--mute)}
+.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.stat small{color:var(--mute);font-size:11px}
+.health-grid{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(0,1.2fr);gap:12px;margin:14px 0}
+.score-panel{display:flex;align-items:center;gap:20px;min-height:200px}
+.score-number{font-size:62px;font-weight:800;letter-spacing:-.06em;line-height:1;font-variant-numeric:tabular-nums}
+.score-denom{font-size:14px;color:var(--mute);font-weight:600}
+.level{display:inline-flex;align-items:center;padding:4px 9px;border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}
+.level.healthy{color:var(--green);border-color:#24533d;background:#0c1812}.level.watch{color:var(--gold);border-color:#59451c;background:#171309}.level.high{color:var(--red);border-color:#52232a;background:#1b0c0f}.level.building{color:var(--blue);border-color:#2d3f70;background:#0e1320}
+.score-meta{display:grid;gap:8px;min-width:0}.progress{height:9px;border-radius:99px;background:#24242d;overflow:hidden}.progress>span{display:block;height:100%;background:linear-gradient(90deg,#8aa9ff,#f5c542);width:0;transition:width .25s}
+.components{display:grid;gap:13px}.component{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center}.component strong{font-size:13px}.component small{font-size:11px;color:var(--mute)}.component .meter{grid-column:1/-1;height:7px;border-radius:99px;background:#24242d;overflow:hidden}.component .meter span{display:block;height:100%;background:#f5c542}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.list{display:grid;gap:8px}.risk-row,.list-row{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f}
+.risk-row{display:flex;gap:10px;align-items:flex-start}.risk-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);margin-top:5px;flex:0 0 auto}.risk-dot.high{background:var(--red)}.risk-row strong{display:block;font-size:13px}.risk-row small{display:block;color:var(--mute);font-size:11px;margin-top:2px}
+.chart-wrap{width:100%;overflow:hidden}.chart{display:block;width:100%;height:auto;min-height:190px}.empty{padding:22px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:11px;font-size:13px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+tr:last-child td{border-bottom:0}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.member-link{font-weight:650}.status-pill{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:700}
+.status-pill.active{color:var(--green);border-color:#24533d;background:#0c1812}.status-pill.cooling{color:var(--gold);border-color:#59451c;background:#171309}
+.status-pill.inactive,.status-pill.long_inactive{color:var(--red);border-color:#52232a;background:#1b0c0f}.status-pill.not_yet_active{color:var(--blue);border-color:#2d3f70;background:#0e1320}
+input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px;font-size:13px}
+.method{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.method article{border:1px solid var(--line);border-radius:10px;padding:11px;background:#0b0b0f}.method strong{font-size:12px}.method p{margin:4px 0 0}
+.statusline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}
+.error{color:var(--red)}
+@media(max-width:950px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}.health-grid{grid-template-columns:1fr}}
+@media(max-width:650px){main{padding:18px 12px 48px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.method{grid-template-columns:1fr}.stat b{font-size:21px}.score-panel{gap:14px;min-height:160px}.score-number{font-size:52px}h1{font-size:20px}.panel{padding:12px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">🛡️</div><div><h1>Clan Health</h1><div class="sub">Chaos participation, momentum, balance and retention</div></div></div>
+  <nav class="nav">
+    <a href="/">← Bleed Watch</a>
+    <a href="/activity.html">📈 Member Activity</a>
+    <a href="/retention.html">🧭 Member Retention</a>
+    <a href="/seasons.html">🏆 Seasons</a>
+    <a href="/analytics.html">📊 Season Analytics</a>
+    <a class="active" href="/clan-health.html">🛡️ Clan Health</a>
+  </nav>
+</header>
+
+<div class="notice neutral" id="baseline-note">Loading tracker coverage…</div>
+
+<section class="summary" aria-label="Clan health overview">
+  <div class="stat"><span>Tracked members</span><b id="tracked-members">—</b><small>Current Chaos roster</small></div>
+  <div class="stat"><span>Recently active</span><b id="recent-active">—</b><small>Recorded gain in last 7 days</small></div>
+  <div class="stat"><span>Active · latest week</span><b id="active-week">—</b><small>7 completed days · score baseline</small></div>
+  <div class="stat"><span>Rep gained · latest week</span><b id="weekly-gain">—</b><small>Completed Manila calendar days</small></div>
+  <div class="stat"><span>Inactive · 14+ days</span><b id="inactive-count">—</b><small>No recorded positive gain</small></div>
+</section>
+
+<div class="health-grid">
+  <section class="panel score-panel">
+    <div>
+      <div class="sub">CLAN HEALTH SCORE</div>
+      <div><span class="score-number" id="score">—</span><span class="score-denom"> / 100</span></div>
+    </div>
+    <div class="score-meta">
+      <span class="level building" id="risk-level">Baseline building</span>
+      <strong id="score-title">Waiting for daily coverage</strong>
+      <div class="sub" id="score-period">A reliable score needs 15 consecutive daily snapshots.</div>
+      <div class="progress" aria-label="Health score baseline progress"><span id="baseline-progress"></span></div>
+      <small class="sub" id="baseline-count">0 / 15 consecutive snapshots</small>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Score breakdown</h2><span class="sub">Weighted components</span></div>
+    <div class="components" id="components">
+      <div class="empty">Components unlock when the 14-day activity comparison is complete.</div>
+    </div>
+  </section>
+</div>
+
+<div class="grid">
+  <section class="panel">
+    <div class="panel-head"><h2>Clan risk indicators</h2><span class="sub" id="risk-count">Baseline building</span></div>
+    <div class="list" id="risk-list"><div class="empty">Risk checks are waiting for sufficient history.</div></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Health trend</h2><span class="sub" id="trend-range">Last 30 available score dates</span></div>
+    <div class="chart-wrap" id="history-chart"><div class="empty">Daily health trend will appear after the baseline is complete.</div></div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div><h2>Member activity status</h2><div class="sub" id="member-count">Loading tracked members…</div></div>
+    <div class="toolbar"><input type="search" id="member-search" placeholder="Search members" aria-label="Search members"><button type="button" id="refresh">Refresh now</button></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Member</th><th>Status</th><th class="num">Season gain</th><th class="num">Gain events</th><th class="num">Active days</th><th>Last recorded gain</th><th class="num">Quiet days</th></tr></thead>
+    <tbody id="member-rows"><tr><td colspan="7" class="empty">Loading member status…</td></tr></tbody>
+  </table></div>
+  <div class="sub" style="margin-top:9px">Open a member profile for their detailed reputation history.</div>
+</section>
+
+<section class="panel" style="margin-top:14px">
+  <div class="panel-head"><h2>How the score works</h2><span class="sub">Transparent · Season 4 onward</span></div>
+  <div class="method">
+    <article><strong>Participation · 35%</strong><p>Members with a recorded positive gain in the latest seven completed days, divided by the tracked roster.</p></article>
+    <article><strong>Activity momentum · 25%</strong><p>Average of the change in weekly reputation gains and the change in active-member count versus the prior seven days.</p></article>
+    <article><strong>Contribution balance · 20%</strong><p>Rewards a broader share of gains; measures the top 20% of active contributors against an even share.</p></article>
+    <article><strong>Member retention · 20%</strong><p>Share of members active in the previous seven-day period who were also active in the latest period.</p></article>
+  </div>
+  <p style="margin-top:12px">Risk thresholds: Healthy 70–100, Watch 45–69, High risk 0–44. Major risk indicators can raise the displayed risk level. The score stays hidden until 15 consecutive daily ranking snapshots are available; the first day’s gain needs the prior cumulative snapshot.</p>
+  <p>Dates use Asia/Manila. The current implementation covers the Chaos roster because other clans do not yet have the same durable member-level daily history.</p>
+</section>
+
+<div class="statusline"><span id="status-message" class="sub">Loading clan health…</span><span class="sub">Refreshes every 60 seconds · Asia/Manila</span></div>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const fmt = value => Number(value || 0).toLocaleString('en-US');
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dateLabel = value => value ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(value + 'T12:00:00+08:00')) : '—';
+  let data = null, busy = false, query = '';
+
+  function renderScore() {
+    const health = data.health || {};
+    const coverage = data.coverage || {};
+    $('tracked-members').textContent = fmt(data.summary.tracked_members);
+    $('recent-active').textContent = fmt(data.summary.recently_active_7d);
+    $('active-week').textContent = health.available ? fmt(data.summary.active_7d) : '—';
+    $('weekly-gain').textContent = health.available ? '+' + fmt(data.summary.weekly_gain) : '—';
+    $('inactive-count').textContent = fmt(data.summary.inactive_14d);
+    $('baseline-progress').style.width = String(coverage.baseline_percent || 0) + '%';
+    $('baseline-count').textContent = fmt(coverage.consecutive_snapshot_days) + ' / ' +
+      fmt(coverage.required_snapshot_days) + ' consecutive snapshots · ' +
+      fmt(coverage.daily_ledger_days) + ' daily-ledger dates';
+    $('baseline-note').textContent = coverage.note || 'Waiting for tracker coverage.';
+    const level = health.risk_level || 'building';
+    $('risk-level').className = 'level ' + level;
+    $('risk-level').textContent = level === 'building' ? 'Baseline building'
+      : level === 'healthy' ? 'Healthy' : level === 'watch' ? 'Watch' : 'High risk';
+    $('score').textContent = health.available ? fmt(health.score) : '—';
+    $('score-title').textContent = health.available
+      ? (level === 'healthy' ? 'Healthy clan activity' : level === 'watch' ? 'Keep an eye on activity' : 'Clan activity needs attention')
+      : 'Waiting for daily coverage';
+    $('score-period').textContent = health.available
+      ? 'Latest score as of ' + dateLabel(health.as_of) +
+        (health.score_change == null ? '' : ' · ' + (health.score_change > 0 ? '+' : '') + health.score_change + ' vs prior score')
+      : 'A reliable score needs 15 consecutive daily ranking snapshots.';
+    renderComponents(health.components);
+    renderRisks(health.flags || [], health.available);
+  }
+
+  function renderComponents(components) {
+    const holder = $('components');
+    if (!components) {
+      holder.innerHTML = '<div class="empty">Components unlock when the 14-day activity comparison is complete.</div>';
+      return;
+    }
+    const items = [
+      ['participation','Participation',35,components.participation.score + '% · ' + components.participation.value + '/' + components.participation.denominator + ' members'],
+      ['momentum','Activity momentum',25,components.momentum.score + '% · ' + fmt(components.momentum.current_gain) + ' vs ' + fmt(components.momentum.previous_gain) + ' rep'],
+      ['balance','Contribution balance',20,components.balance.score + '% · ' + (components.balance.top_share_percent == null ? 'No gains recorded' : 'Top 20% share ' + components.balance.top_share_percent + '%')],
+      ['retention','Member retention',20,components.retention.score + '% · ' + components.retention.retained_members + '/' + components.retention.previous_active_members + ' members retained'],
+    ];
+    holder.innerHTML = items.map(item =>
+      '<div class="component"><div><strong>' + item[1] + '</strong><br><small>' + item[3] + '</small></div>' +
+      '<strong>' + item[2] + '%</strong><div class="meter"><span style="width:' + item[2] + '%"></span></div></div>'
+    ).join('');
+  }
+
+  function renderRisks(flags, available) {
+    $('risk-count').textContent = available ? flags.length + ' active indicator' + (flags.length===1?'':'s') : 'Baseline building';
+    if (!available) {
+      $('risk-list').innerHTML = '<div class="empty">Risk checks are waiting for the full 14-day comparison window. In the meantime, the member table shows observed activity and inactivity ages.</div>';
+      return;
+    }
+    if (!flags.length) {
+      $('risk-list').innerHTML = '<div class="empty">No risk indicators are currently triggered.</div>';
+      return;
+    }
+    $('risk-list').innerHTML = flags.map(flag =>
+      '<div class="risk-row"><span class="risk-dot ' + (flag.level==='high'?'high':'') + '"></span><div><strong>' +
+      esc(flag.title) + '</strong><small>' + esc(flag.detail) + '</small></div></div>'
+    ).join('');
+  }
+
+  function renderHistory() {
+    const rows = data.history || [];
+    const holder = $('history-chart');
+    if (!rows.length) {
+      holder.innerHTML = '<div class="empty">Daily health trend will appear after the baseline is complete.</div>';
+      $('trend-range').textContent = 'No score dates yet';
+      return;
+    }
+    $('trend-range').textContent = dateLabel(rows[0].date) + ' – ' + dateLabel(rows[rows.length-1].date);
+    const W=900,H=230,L=42,R=16,T=18,B=38,plotW=W-L-R,plotH=H-T-B;
+    const xStep=rows.length>1?plotW/(rows.length-1):0;
+    const y=value=>T+plotH-(Math.max(0,Math.min(100,value))/100)*plotH;
+    let svg='<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Clan health score history">';
+    for(let tick=0;tick<=100;tick+=25){
+      const py=y(tick);
+      svg+='<line x1="'+L+'" y1="'+py+'" x2="'+(W-R)+'" y2="'+py+'" stroke="#292934" stroke-width="1"/>';
+      svg+='<text x="'+(L-9)+'" y="'+(py+4)+'" text-anchor="end" font-size="11" fill="#8b8b98">'+tick+'</text>';
+    }
+    const points=rows.map((row,i)=>(L+(rows.length>1?i*xStep:plotW/2))+','+y(row.score)).join(' ');
+    if(rows.length>1) svg+='<polyline points="'+points+'" fill="none" stroke="#f5c542" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+    rows.forEach((row,i)=>{
+      const px=L+(rows.length>1?i*xStep:plotW/2), py=y(row.score);
+      svg+='<circle cx="'+px+'" cy="'+py+'" r="4" fill="#f5c542"><title>'+esc(row.date)+': '+row.score+'/100</title></circle>';
+    });
+    svg+='<text x="'+L+'" y="'+(H-10)+'" font-size="11" fill="#8b8b98">'+esc(rows[0].date)+'</text>';
+    svg+='<text x="'+(W-R)+'" y="'+(H-10)+'" text-anchor="end" font-size="11" fill="#8b8b98">'+esc(rows[rows.length-1].date)+'</text>';
+    svg+='</svg>';
+    holder.innerHTML=svg;
+  }
+
+  function renderMembers() {
+    const rows=(data.members||[]).filter(row=>row.member.toLowerCase().includes(query))
+      .slice().sort((a,b)=>b.season_gain-a.season_gain || a.member.localeCompare(b.member));
+    $('member-count').textContent=rows.length+' of '+data.members.length+' tracked members';
+    $('member-rows').innerHTML=rows.length?rows.map(row=>
+      '<tr><td><a class="member-link" href="/member.html?name='+encodeURIComponent(row.member)+'">'+esc(row.member)+'</a></td>'+
+      '<td><span class="status-pill '+row.status+'">'+esc(row.status.replace('_',' '))+'</span></td>'+
+      '<td class="num">+'+fmt(row.season_gain)+'</td><td class="num">'+fmt(row.gain_events)+'</td>'+
+      '<td class="num">'+fmt(row.active_days)+'</td><td>'+dateLabel(row.last_gain_day)+'</td>'+
+      '<td class="num">'+fmt(row.quiet_days)+'</td></tr>'
+    ).join(''):'<tr><td colspan="7" class="empty">No members match this search.</td></tr>';
+  }
+
+  function render() {
+    renderScore();
+    renderHistory();
+    renderMembers();
+    $('status-message').textContent='Updated '+new Date(data.generated_at||Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
+      ' · Season '+data.season.season_number+' · '+data.coverage.snapshot_days+' unique snapshot dates';
+    $('status-message').classList.remove('error');
+  }
+
+  async function load() {
+    if(busy) return;
+    busy=true;
+    $('refresh').disabled=true;
+    try {
+      const response=await fetch('/api/seasons?view=health',{cache:'no-store'});
+      if(!response.ok) throw new Error('Clan health API returned HTTP '+response.status);
+      const next=await response.json();
+      if(!next.health||!next.coverage||!Array.isArray(next.members)||!Array.isArray(next.history)) {
+        throw new Error('Clan health API returned incomplete data');
+      }
+      data=next;
+      render();
+    } catch(error) {
+      $('status-message').textContent=error.message;
+      $('status-message').classList.add('error');
+      if(!data) $('member-rows').innerHTML='<tr><td colspan="7" class="empty error">Unable to load clan health. Please refresh the page.</td></tr>';
+    } finally {
+      busy=false;
+      $('refresh').disabled=false;
+    }
+  }
+
+  $('refresh').addEventListener('click',load);
+  $('member-search').addEventListener('input',event=>{
+    query=event.target.value.trim().toLowerCase();
+    if(data) renderMembers();
+  });
+  load();
+  setInterval(load,60000);
+})();
+</script>
+</body>
+</html>

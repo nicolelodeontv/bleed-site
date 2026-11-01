@@ -1,4 +1,5 @@
 import { runTick } from './_lib.js';
+import { queueChaosClanHealthAlerts, dispatchChaosClanHealthAlerts } from './_clan-health-alerts.js';
 import {
   queueChaosWeeklySeasonReport,
   dispatchChaosWeeklySeasonReport,
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
   try {
     // Run the existing clan poll and the weekly Discord job concurrently so
     // delivery latency does not extend the bleed-check critical path.
-    const [s, weeklyReport, awardRace, retention] = await Promise.all([
+    const [s, weeklyReport, awardRace, retention, clanHealth] = await Promise.all([
       runTick(10000),
       (async () => {
         try {
@@ -61,7 +62,23 @@ export default async function handler(req, res) {
           return null;
         }
       })(),
-    ]);
+  
+      (async () => {
+        try {
+          const queued = await queueChaosClanHealthAlerts();
+          const delivered = await dispatchChaosClanHealthAlerts();
+          if (queued.status === 'queued' ||
+              ['sent', 'sent_unconfirmed', 'retry_scheduled'].includes(delivered.status)) {
+            return { queue: queued, delivery: delivered };
+          }
+          return null;
+        } catch (error) {
+          console.error('Clan Health alert processing failed:',
+            String(error && error.message || error).slice(0, 400));
+          return null;
+        }
+      })(),
+  ]);
     const result = {
       ok: true,
       checked_at: s.checked_at,
@@ -70,6 +87,7 @@ export default async function handler(req, res) {
     if (weeklyReport) result.weekly_report = weeklyReport;
     if (awardRace) result.award_race = awardRace;
     if (retention) result.member_retention = retention;
+    if (clanHealth) result.clan_health = clanHealth;
     return res.status(200).json(result);
   } catch (e) {
     return res.status(502).json({ error: e.message });
