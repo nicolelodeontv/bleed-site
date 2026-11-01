@@ -1051,11 +1051,11 @@ async function handleMemberRetention(req, res) {
       const chronologicalDays = Array.from(activityDates).sort();
       let returningAfterDays = null;
       if (chronologicalDays.length >= 2 &&
-          chronologicalDays[chronologicalDays.length - 1] >= currentStart) {
+          chronologicalDays[chronologicalDays.length - 1] >= retentionAddDays(today, -6)) {
         const last = chronologicalDays[chronologicalDays.length - 1];
         const prior = chronologicalDays[chronologicalDays.length - 2];
         const gap = retentionDayDiff(prior, last);
-        if (gap >= 7) returningAfterDays = gap - 1;
+        if (gap >= 8) returningAfterDays = gap - 1;
       }
 
       const activityDrop = trendAvailable && previousGain >= 25 &&
