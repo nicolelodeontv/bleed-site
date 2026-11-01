@@ -1,5 +1,4 @@
 import { runTick } from './_lib.js';
-import { queueChaosClanHealthAlerts, dispatchChaosClanHealthAlerts } from './_clan-health-alerts.js';
 import {
   queueChaosWeeklySeasonReport,
   dispatchChaosWeeklySeasonReport,
@@ -7,6 +6,8 @@ import {
   dispatchChaosAwardRaceAlert,
   queueChaosMemberRetentionAlerts,
   dispatchChaosMemberRetentionAlerts,
+  queueChaosClanHealthAlerts,
+  dispatchChaosClanHealthAlerts,
 } from './_season-alerts.js';
 
 // An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
