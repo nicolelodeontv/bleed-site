@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07070a">
+<title>Live Awards Race · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#92929e;--gold:#f5c542;--green:#3ecf8e;--red:#ff7b84}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(950px 440px at 50% -150px,rgba(245,197,66,.12),transparent 72%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1160px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:23px;background:linear-gradient(160deg,#2a2110,#100d07);border:1px solid #51421f}
+h1{margin:0;font-size:24px;letter-spacing:-.025em;line-height:1.2}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:12px}
+.nav a.highlight{border-color:#51421f;background:#171309}
+.hero{border:1px solid #3d331d;background:linear-gradient(120deg,rgba(245,197,66,.10),rgba(15,15,19,.96) 60%);border-radius:16px;padding:18px;margin-bottom:18px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.hero h2{font-size:17px;margin:0 0 4px;letter-spacing:-.01em;color:var(--text);text-transform:none}
+.hero p{margin:0;color:var(--mute);font-size:13px;max-width:720px}
+.season-tag{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #51421f;border-radius:999px;background:#171309;color:#f5d578;font-size:12px;font-weight:700}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums;margin-top:3px;overflow-wrap:anywhere}
+.stat small{font-size:11px;color:var(--mute)}
+h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:27px 0 10px;font-weight:750}
+.race-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.race-card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;min-width:0}
+.race-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.award-name{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px}
+.award-icon{font-size:21px}
+.provisional{font-size:9px;letter-spacing:.09em;font-weight:800;color:var(--green);border:1px solid #24533d;background:#0c1812;padding:4px 7px;border-radius:999px;white-space:nowrap}
+.leading{border:1px solid #51421f;border-radius:12px;background:linear-gradient(110deg,rgba(245,197,66,.09),#0b0b0f 68%);padding:12px}
+.leading-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);font-weight:800}
+.leading-score{font-size:22px;color:var(--gold);font-weight:850;font-variant-numeric:tabular-nums;margin-top:2px}
+.leaders{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.leader-link{display:inline-flex;align-items:center;padding:5px 9px;border:1px solid #51421f;border-radius:999px;background:#171309;font-size:12px;font-weight:700}
+.gap{font-size:11px;color:var(--mute);margin-top:9px}
+.contenders{display:grid;gap:5px;margin-top:11px}
+.contender{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #1c1c23;font-size:12px}
+.contender:last-child{border-bottom:0}
+.rank{color:var(--mute);font-variant-numeric:tabular-nums}
+.contender-name{overflow-wrap:anywhere}
+.contender-score{font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+.contender.leader .rank,.contender.leader .contender-score{color:var(--gold)}
+.race-note{font-size:11px;color:var(--mute);margin-top:10px}
+.unavailable{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px dashed #393943;border-radius:11px;color:var(--mute);font-size:12px}
+.unavailable strong{display:block;color:var(--text);margin-bottom:3px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.rule{padding:10px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f}
+.rule b{display:block;font-size:12px;margin-bottom:3px}
+.rule span{display:block;font-size:11px;color:var(--mute)}
+.status{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:16px}
+.error{color:var(--red)}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+@media(max-width:760px){main{padding:20px 13px 48px}.race-grid{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.rules{grid-template-columns:1fr 1fr}}
+@media(max-width:430px){h1{font-size:21px}.race-card{padding:12px}.rules{grid-template-columns:1fr}.stat b{font-size:20px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">🏁</div><div><h1>Live Awards Race</h1><div class="sub">Provisional Season Awards standings</div></div></div>
+  <nav class="nav">
+    <a class="highlight" href="/seasons.html">🏆 Season Tracking</a>
+    <a href="/hall-of-fame.html">🏅 Hall of Fame</a>
+    <a href="/analytics.html">📊 Analytics</a>
+    <a href="/">← Bleed Watch</a>
+  </nav>
+</header>
+<section class="hero">
+  <div class="hero-top">
+    <div><h2 id="hero-title">The race is loading…</h2><p id="hero-description">Live standings are calculated from the saved season leaderboard. Tied leaders share the top spot.</p></div>
+    <span class="season-tag" id="season-tag">🏁 Checking season</span>
+  </div>
+</section>
+<section class="summary" aria-label="Awards race summary">
+  <div class="stat"><span>Season leader</span><b id="mvp-leader">—</b><small id="mvp-meta">Season MVP race</small></div>
+  <div class="stat"><span>Awards with contenders</span><b id="available-count">—</b><small>Of six award categories</small></div>
+  <div class="stat"><span>Eligible members</span><b id="eligible-count">—</b><small>Members with season records</small></div>
+  <div class="stat"><span>Previous comparison</span><b id="previous-season">—</b><small id="previous-meta">Tracked season baseline</small></div>
+</section>
+<h2 class="section-title">Current award standings</h2>
+<section class="race-grid" id="race-grid" aria-live="polite">
+  <div class="race-card"><div class="unavailable">Loading the current season leaderboard…</div></div>
+</section>
+<h2 class="section-title">How the race is calculated</h2>
+<section class="panel">
+  <div class="rules">
+    <div class="rule"><b>👑 Season MVP</b><span>Highest total reputation gained in the active season.</span></div>
+    <div class="rule"><b>⚔️ Most Active</b><span>Most unique Manila calendar days with a recorded increase.</span></div>
+    <div class="rule"><b>🔥 Consistency</b><span>Longest consecutive streak of calendar days with a recorded increase.</span></div>
+    <div class="rule"><b>🎯 Recorded Increases</b><span>Most positive changes detected between shared game reads.</span></div>
+    <div class="rule"><b>📈 Most Improved</b><span>Largest positive change in reputation gained per calendar day versus the previous tracked season. Returning members with positive gains in both seasons qualify.</span></div>
+    <div class="rule"><b>🌱 Rookie of the Season</b><span>Highest-gaining member with no saved member row in the previous tracked season.</span></div>
+  </div>
+  <p class="note">The standings are provisional and can change after each data sync. Final trophies are calculated and permanently recorded when the season closes. Members with no positive metric are not ranked. Most Improved and Rookie stay unavailable until a previous tracked season exists.</p>
+</section>
+<div class="status"><span id="status-message" class="sub">Loading current season data…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = value => Number(value || 0).toLocaleString('en-US');
+  const fmtDecimal = value => Number(value || 0).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
+  const defs = [
+    {key:'mvp',title:'Season MVP',icon:'👑',format:v=>'+'+fmt(v)+' rep'},
+    {key:'active',title:'Most Active',icon:'⚔️',format:v=>fmt(v)+' days'},
+    {key:'consistency',title:'Consistency Award',icon:'🔥',format:v=>fmt(v)+' days'},
+    {key:'events',title:'Most Recorded Increases',icon:'🎯',format:v=>fmt(v)+' increases'},
+    {key:'improved',title:'Most Improved',icon:'📈',format:v=>'+'+fmtDecimal(v)+' rep/day'},
+    {key:'rookie',title:'Rookie of the Season',icon:'🌱',format:v=>'+'+fmt(v)+' rep'}
+  ];
+  let busy = false, latest = null, previousData = null, previousError = null;
+  function elapsedDays(season) {
+    const start = Number(season && season.started_at);
+    const end = season && season.ended_at != null ? Number(season.ended_at) : Date.now();
+    if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(end)) return null;
+    return Math.max(1,Math.ceil(Math.max(0,end-start)/86400000));
+  }
+  function profileLink(name) {
+    return '<a class="leader-link" href="/member.html?name='+encodeURIComponent(name)+'">'+esc(name)+'</a>';
+  }
+  function makeRace(def, rows, getValue, unavailableMessage) {
+    const candidates = rows.map(row=>({member:String(row.member||''),value:Number(getValue(row)||0)}))
+      .filter(row=>row.member && Number.isFinite(row.value) && row.value>0)
+      .sort((a,b)=>b.value-a.value || a.member.localeCompare(b.member));
+    if (!candidates.length) return {def:def,available:false,message:unavailableMessage||'No qualifying positive results have been recorded yet.',eligible:0,leaders:[],contenders:[]};
+    const best = candidates[0].value;
+    const tied = candidates.filter(row=>Math.abs(row.value-best)<0.0000001);
+    const nextDistinct = candidates.find(row=>Math.abs(row.value-best)>=0.0000001);
+    const visibleCount = Math.max(5,tied.length);
+    const visible = candidates.slice(0,visibleCount);
+    let priorValue = null, rank = 0;
+    const contenders = visible.map((row,index)=>{
+      if (priorValue===null || Math.abs(row.value-priorValue)>=0.0000001) rank=index+1;
+      priorValue=row.value;
+      return {member:row.member,value:row.value,rank:rank};
+    });
+    return {def:def,available:true,eligible:candidates.length,leaders:tied,leaderValue:best,gap:nextDistinct?best-nextDistinct.value:null,contenders:contenders};
+  }
+  function makeRaces(current, previous) {
+    const rows = Array.isArray(current.members) ? current.members : [];
+    const season = current.selected_season || {};
+    const results = [
+      makeRace(defs[0],rows,row=>row.season_gain),
+      makeRace(defs[1],rows,row=>row.active_days),
+      makeRace(defs[2],rows,row=>row.longest_streak_days),
+      makeRace(defs[3],rows,row=>row.gain_events)
+    ];
+    const prevSeason = current.previous_season;
+    if (!prevSeason) {
+      results.push({def:defs[4],available:false,locked:true,eligible:0,leaders:[],contenders:[],message:'A previous tracked season is required before daily-rate improvement can be compared.'});
+      results.push({def:defs[5],available:false,locked:true,eligible:0,leaders:[],contenders:[],message:'Rookie eligibility starts once the tracker has a preceding season baseline.'});
+      return results;
+    }
+    if (!previous || !Array.isArray(previous.members)) {
+      const reason = previousError ? 'Previous season standings could not be loaded: '+previousError : 'Previous season standings are still unavailable.';
+      results.push({def:defs[4],available:false,locked:false,eligible:0,leaders:[],contenders:[],message:reason});
+      results.push({def:defs[5],available:false,locked:false,eligible:0,leaders:[],contenders:[],message:reason});
+      return results;
+    }
+    const currentDays = elapsedDays(season);
+    const previousDays = elapsedDays(prevSeason);
+    const priorByMember = new Map(previous.members.map(row=>[String(row.member),row]));
+    if (!currentDays || !previousDays) {
+      results.push({def:defs[4],available:false,eligible:0,leaders:[],contenders:[],message:'Season duration data is incomplete, so improvement cannot be compared safely.'});
+    } else {
+      const improvementRows = rows.map(row=>{
+        const old = priorByMember.get(String(row.member));
+        if (!old || Number(row.season_gain||0)<=0 || Number(old.season_gain||0)<=0) return null;
+        const currentRate = Number(row.season_gain||0)/currentDays;
+        const previousRate = Number(old.season_gain||0)/previousDays;
+        const improvement = Math.round((currentRate-previousRate)*1000)/1000;
+        return improvement>0 ? {member:row.member,improvement:improvement} : null;
+      }).filter(Boolean);
+      results.push(makeRace(defs[4],improvementRows,row=>row.improvement,'No returning member has a positive daily-gain improvement yet.'));
+    }
+    const rookies = rows.filter(row=>Number(row.season_gain||0)>0 && !priorByMember.has(String(row.member)));
+    results.push(makeRace(defs[5],rookies,row=>row.season_gain,'No eligible newcomer has recorded a positive season gain yet.'));
+    return results;
+  }
+  function renderCard(race) {
+    const def = race.def;
+    const head = '<div class="race-head"><div class="award-name"><span class="award-icon">'+def.icon+'</span>'+def.title+'</div><span class="provisional">PROVISIONAL</span></div>';
+    if (!race.available) {
+      return '<article class="race-card">'+head+'<div class="unavailable"><div><strong>'+(race.locked?'Waiting for previous season':'No current leader')+'</strong>'+esc(race.message||'No eligible contenders yet.')+'</div></div></article>';
+    }
+    const names = race.leaders.map(row=>profileLink(row.member)).join('');
+    const gapText = race.gap==null?'No runner-up recorded yet.':'Lead over next distinct score: '+def.format(race.gap);
+    const contenders = race.contenders.map(row=>
+      '<div class="contender '+(row.rank===1?'leader':'')+'"><span class="rank">#'+row.rank+'</span>'+
+      '<a class="contender-name" href="/member.html?name='+encodeURIComponent(row.member)+'">'+esc(row.member)+'</a>'+
+      '<span class="contender-score">'+esc(def.format(row.value))+'</span></div>'
+    ).join('');
+    return '<article class="race-card">'+head+
+      '<div class="leading"><div class="leading-label">'+(race.leaders.length>1?'Tied current leaders':'Current leader')+' · '+race.eligible+' eligible</div>'+
+      '<div class="leading-score">'+esc(def.format(race.leaderValue))+'</div><div class="leaders">'+names+'</div>'+
+      '<div class="gap">'+esc(gapText)+'</div></div><div class="contenders">'+contenders+'</div>'+
+      '<div class="race-note">Showing the top '+race.contenders.length+' contenders. Every tied leader is included.</div></article>';
+  }
+  function render() {
+    const season=latest.selected_season||{};
+    const races=makeRaces(latest,previousData);
+    const available=races.filter(race=>race.available).length;
+    const mvp=races[0];
+    $('hero-title').textContent=season.status==='active'?'Season '+season.season_number+' · the race is live':'Season '+season.season_number+' · recorded standings';
+    $('hero-description').textContent=season.status==='active'
+      ? 'Provisional award leaders based on the latest saved member-season stats. Standings recalculate as the shared game data is synced.'
+      : 'The selected season is completed. These saved stats are shown for reference; final trophies are listed in the Hall of Fame.';
+    $('season-tag').textContent=(season.status==='active'?'🟢 ACTIVE':'🏁 COMPLETED')+' · SEASON '+season.season_number;
+    $('available-count').textContent=available;
+    $('eligible-count').textContent=Array.isArray(latest.members)?latest.members.length:0;
+    $('previous-season').textContent=latest.previous_season?'Season '+latest.previous_season.season_number:'—';
+    $('previous-meta').textContent=latest.previous_season?'Comparison baseline available':'No earlier tracked season yet';
+    $('mvp-leader').textContent=mvp.available?(mvp.leaders.length===1?mvp.leaders[0].member:mvp.leaders.length+' tied'):'—';
+    $('mvp-meta').textContent=mvp.available?mvp.def.format(mvp.leaderValue):'No positive season gain yet';
+    $('race-grid').innerHTML=races.map(renderCard).join('');
+  }
+  async function requestSeason(number) {
+    const query=number==null?'':'?season='+encodeURIComponent(number);
+    const response=await fetch('/api/seasons'+query,{cache:'no-store',headers:{'Accept':'application/json'}});
+    const data=await response.json();
+    if (!response.ok) throw new Error(data.error||'Season API returned HTTP '+response.status);
+    if (!data.selected_season||!Array.isArray(data.members)) throw new Error('Season API returned incomplete data.');
+    return data;
+  }
+  async function load() {
+    if (busy || document.hidden) return;
+    busy=true;
+    try {
+      const current=await requestSeason(null);
+      latest=current;
+      previousData=null;
+      previousError=null;
+      if (current.previous_season) {
+        try { previousData=await requestSeason(Number(current.previous_season.season_number)); }
+        catch(error) { previousError=error.message||String(error); }
+      }
+      render();
+      $('status-message').classList.remove('error');
+      const updated=new Date(Number(current.generated_at)||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+      $('status-message').textContent='Updated '+updated+' · Season '+current.selected_season.season_number+' · refreshes every 60 seconds';
+    } catch(error) {
+      $('status-message').textContent=error.message||'Unable to load the live awards race.';
+      $('status-message').classList.add('error');
+      if (!latest) $('race-grid').innerHTML='<div class="race-card"><div class="unavailable"><div><strong>Unable to load the awards race</strong>'+esc(error.message||'The season data is temporarily unavailable.')+'</div></div></div>';
+    } finally { busy=false; }
+  }
+  load();
+  setInterval(load,60000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+})();
+</script>
+</body>
+</html>
