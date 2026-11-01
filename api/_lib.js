@@ -55,14 +55,8 @@ function manilaDate(timestamp) {
 async function saveDailyClanSnapshot(clans, capturedAt) {
   if (!Array.isArray(clans) || !clans.length) return 0;
   const snapshotDate = manilaDate(capturedAt);
-  const read = await fetch(
-    DAILY_CLAN_RANKINGS + '?snapshot_date=eq.' + snapshotDate + '&select=clan_name&limit=500',
-    { headers: H, signal: sig() }
-  );
-  if (!read.ok) throw new Error('Daily clan snapshot lookup failed: ' + read.status);
-  const existing = new Set((await read.json()).map(row => row.clan_name));
-  const rows = clans.filter(clan => clan && clan.name && !existing.has(clan.name)).map(clan => {
-    const slots = String(clan.members || '').match(/(\d+)\s*\/\s*(\d+)/);
+  const rows = clans.filter(clan => clan && clan.name).map(clan => {
+    const slots = String(clan.members || '').match(/(\\d+)\\s*\\/\\s*(\\d+)/);
     return {
       snapshot_date: snapshotDate,
       clan_name: String(clan.name),
@@ -77,7 +71,8 @@ async function saveDailyClanSnapshot(clans, capturedAt) {
   if (!rows.length) return 0;
   const write = await fetch(DAILY_CLAN_RANKINGS + '?on_conflict=snapshot_date,clan_name', {
     method: 'POST',
-    headers: { ...H, Prefer: 'resolution=merge-duplicates,return=minimal' },
+    // Ignore same-day duplicates so the first complete ranking read remains authoritative.
+    headers: { ...H, Prefer: 'resolution=ignore-duplicates,return=minimal' },
     body: JSON.stringify(rows),
     signal: sig(),
   });
@@ -88,12 +83,25 @@ async function saveDailyClanSnapshot(clans, capturedAt) {
 // Also called by the history view to capture today's baseline before the next cron poll.
 export async function ensureDailyClanSnapshot() {
   const now = Date.now();
+  const today = manilaDate(now);
   const state = await getState();
-  const recent = now - Number(state.checked_at || 0) < 90 * 1000;
-  const clans = recent && Array.isArray(state.clans) && state.clans.length
-    ? state.clans : await fetchClans();
+  const lastCheck = Number(state.checked_at || 0);
+  const recentSameDay = lastCheck > 0 &&
+    now - lastCheck < 90 * 1000 &&
+    manilaDate(lastCheck) === today;
+  let clans;
+  if (recentSameDay && Array.isArray(state.clans) && state.clans.length) {
+    clans = state.clans;
+  } else {
+    clans = await fetchClans();
+    const previousCount = Array.isArray(state.clans) && state.clans.length
+      ? state.clans.length : Object.keys(state.last_rep || {}).length;
+    if (previousCount && clans.length < previousCount * MIN_PARSE_SHARE) {
+      throw new Error('Clan ranking parse looks incomplete; refusing to save a partial daily snapshot.');
+    }
+  }
   const saved = await saveDailyClanSnapshot(clans, now);
-  return { snapshot_date: manilaDate(now), saved, clan_count: clans.length };
+  return { snapshot_date: today, saved, clan_count: clans.length };
 }
 
 async function getState() {
