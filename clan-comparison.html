@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clan Ranking History · Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.11),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1320px;margin:0 auto;padding:28px 18px 64px}header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#29200a,#151107);border:1px solid #51421f}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}.sub{color:var(--mute);font-size:13px}a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a,button,select{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:12px;color:var(--text)}
+.nav .active{border-color:#51421f;background:#171309;color:var(--gold)}button{cursor:pointer;font:inherit}button:disabled{opacity:.55;cursor:wait}button:hover{border-color:#545466}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.panel h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:0;font-weight:700}
+.notice{padding:13px 15px;border:1px solid #3b321c;border-radius:12px;background:#151209;color:#d5c18a;font-size:12px;margin:0 0 16px}.notice.neutral{border-color:var(--line);background:#101015;color:var(--mute)}
+.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}.stat b{display:block;font-size:23px;font-weight:800;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stat small{font-size:11px;color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}.list{display:grid;gap:8px}.list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f}
+.list-row strong{font-size:13px;display:block}.list-row small{font-size:11px;color:var(--mute);display:block}.empty{padding:20px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:11px;font-size:13px}
+input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px;font-size:13px;min-width:220px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums}.rank{color:var(--mute);font-weight:750}.clan-name{font-weight:700}.master{display:block;color:var(--mute);font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.delta{font-weight:750;font-variant-numeric:tabular-nums}.up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--mute)}
+.statusline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}.error{color:var(--red)}
+@media(max-width:1000px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:680px){main{padding:18px 12px 48px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.stat b{font-size:20px}h1{font-size:20px}.panel{padding:12px}input{min-width:0;width:100%}.toolbar{width:100%}.toolbar>*{flex:1}}
+</style>
+</head>
+<body><main>
+<header>
+  <div class="brand"><div class="mark">🏆</div><div><h1>Clan Ranking History</h1><div class="sub">Daily reputation, rank movement and roster size across tracked clans</div></div></div>
+  <nav class="nav"><a href="/">← Bleed Watch</a><a href="/seasons.html">🏆 Seasons</a><a href="/clan-health.html">🛡️ Chaos Health</a><a class="active" href="/clan-comparison.html">📊 Clan History</a></nav>
+</header>
+<div class="notice neutral" id="baseline-note">Loading historical coverage…</div>
+<section class="summary" aria-label="Clan ranking overview">
+  <div class="stat"><span>Clans in latest snapshot</span><b id="clan-count">—</b><small>Current ranking list</small></div>
+  <div class="stat"><span>Latest snapshot</span><b id="latest-date">—</b><small>Asia/Manila calendar day</small></div>
+  <div class="stat"><span>Consecutive days</span><b id="coverage-days">—</b><small>Daily ranking history</small></div>
+  <div class="stat"><span>7-day total rep change</span><b id="weekly-change">—</b><small id="weekly-detail">Waiting for exact baseline</small></div>
+  <div class="stat"><span>30-day total rep change</span><b id="monthly-change">—</b><small id="monthly-detail">Waiting for exact baseline</small></div>
+</section>
+<div class="grid">
+  <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
+  <section class="panel"><div class="panel-head"><h2>Biggest rank improvements · 7 days</h2><span class="sub" id="riser-date">—</span></div><div class="list" id="top-risers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
+</div>
+<section class="panel">
+  <div class="panel-head"><div><h2>All clan rankings</h2><div class="sub" id="table-summary">Loading tracked clans…</div></div>
+    <div class="toolbar"><input type="search" id="search" placeholder="Search clan or master" aria-label="Search clans">
+      <select id="sort" aria-label="Sort clans"><option value="rank">Current rank</option><option value="gain">7-day rep gain</option><option value="rise">7-day rank improvement</option><option value="monthly">30-day rep gain</option></select>
+      <button type="button" id="refresh">Refresh</button></div>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th class="num">Rank</th><th>Clan / Master</th><th class="num">Reputation</th><th class="num">7d rep change</th><th class="num">7d rank change</th><th class="num">Members</th><th class="num">30d rep change</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="7" class="empty">Loading clan history…</td></tr></tbody></table></div>
+</section>
+<section class="panel" style="margin-top:14px"><div class="panel-head"><h2>What this comparison means</h2><span class="sub">Observed rankings only</span></div>
+  <p class="sub">The tracker saves one full clan-ranking snapshot per Manila calendar day. Reputation change is the difference between two saved cumulative totals; rank improvement is the earlier rank minus the latest rank, so positive means a climb. Member change compares the roster count shown by the ranking source.</p>
+  <p class="sub">A comparison is shown only when the exact baseline date exists. Missing days are not backfilled, and this page does not estimate individual member activity or assign health scores to clans without member-level history.</p>
+</section>
+<div class="statusline"><span id="status" class="sub">Loading clan history…</span><span class="sub">Captures once per Manila day · Refreshes every 5 minutes</span></div>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const fmt = value => Number(value || 0).toLocaleString('en-US');
+  const signed = value => value > 0 ? '+' + fmt(value) : value < 0 ? '−' + fmt(Math.abs(value)) : '0';
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dateLabel = value => value ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(value + 'T12:00:00+08:00')) : '—';
+  let data = null, busy = false, query = '';
+
+  function delta(value, positiveIsGood) {
+    if (value === null || value === undefined) return '<span class="flat">Building</span>';
+    const cls = value === 0 ? 'flat' : ((value > 0) === positiveIsGood ? 'up' : 'down');
+    return '<span class="delta ' + cls + '">' + signed(value) + '</span>';
+  }
+
+  function renderLeaders(target, items, key, detail) {
+    const holder = $(target);
+    if (!data.coverage.weekly_comparison_ready) {
+      holder.innerHTML = '<div class="empty">The exact seven-day baseline has not been captured yet.</div>';
+      return;
+    }
+    const rows = items.filter(item => item[key] !== null).slice(0, 7);
+    if (!rows.length) { holder.innerHTML = '<div class="empty">No comparable clans are available for this period.</div>'; return; }
+    holder.innerHTML = rows.map((item, index) =>
+      '<div class="list-row"><div><strong>' + (index + 1) + '. ' + esc(item.name) + '</strong><small>' + esc(detail(item)) +
+      '</small></div><strong class="delta ' + (item[key] > 0 ? 'up' : item[key] < 0 ? 'down' : 'flat') + '">' +
+      signed(item[key]) + '</strong></div>'
+    ).join('');
+  }
+
+  function render() {
+    const coverage = data.coverage || {}, summary = data.summary || {};
+    $('clan-count').textContent = fmt(summary.clan_count);
+    $('latest-date').textContent = dateLabel(coverage.latest_snapshot_date);
+    $('coverage-days').textContent = fmt(coverage.consecutive_snapshot_days) + ' / ' + fmt(coverage.required_weekly_days);
+    $('weekly-change').textContent = summary.weekly_rep_change === null ? '—' : signed(summary.weekly_rep_change);
+    $('weekly-detail').textContent = coverage.weekly_comparison_ready
+      ? fmt(coverage.weekly_compared_clans) + ' clans · baseline ' + dateLabel(coverage.weekly_baseline_date)
+      : 'Waiting for exact 7-day baseline';
+    $('monthly-change').textContent = summary.monthly_rep_change === null ? '—' : signed(summary.monthly_rep_change);
+    $('monthly-detail').textContent = coverage.monthly_comparison_ready
+      ? fmt(coverage.monthly_compared_clans) + ' clans · baseline ' + dateLabel(coverage.monthly_baseline_date)
+      : 'Waiting for exact 30-day baseline';
+
+    $('baseline-note').textContent = !coverage.weekly_comparison_ready
+      ? 'Building ranking history: ' + fmt(coverage.consecutive_snapshot_days) +
+        ' consecutive daily snapshot(s) saved. Seven-day comparisons unlock when the exact date from one week earlier is available. No historical values are fabricated.'
+      : 'Seven-day comparison is live: ' + dateLabel(coverage.weekly_baseline_date) + ' → ' +
+        dateLabel(coverage.latest_snapshot_date) + '. ' + fmt(coverage.weekly_compared_clans) + ' clans have matching snapshots.' +
+        (coverage.monthly_comparison_ready ? ' Thirty-day comparison is also available.' : ' Thirty-day comparisons are still building.');
+
+    $('gainer-date').textContent = coverage.weekly_baseline_date ? dateLabel(coverage.weekly_baseline_date) + ' → ' + dateLabel(coverage.latest_snapshot_date) : 'Baseline building';
+    $('riser-date').textContent = $('gainer-date').textContent;
+    const gainers = data.clans.slice().sort((a,b) => (b.rep_gain_7d ?? -Infinity) - (a.rep_gain_7d ?? -Infinity));
+    const risers = data.clans.slice().sort((a,b) => (b.rank_change_7d ?? -Infinity) - (a.rank_change_7d ?? -Infinity));
+    renderLeaders('top-gainers', gainers, 'rep_gain_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
+    renderLeaders('top-risers', risers, 'rank_change_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
+
+    const sort = $('sort').value;
+    const rows = data.clans.filter(item => (item.name + ' ' + item.master).toLowerCase().includes(query)).slice();
+    if (sort === 'gain') rows.sort((a,b) => (b.rep_gain_7d ?? -Infinity) - (a.rep_gain_7d ?? -Infinity) || a.rank - b.rank);
+    else if (sort === 'rise') rows.sort((a,b) => (b.rank_change_7d ?? -Infinity) - (a.rank_change_7d ?? -Infinity) || a.rank - b.rank);
+    else if (sort === 'monthly') rows.sort((a,b) => (b.rep_gain_30d ?? -Infinity) - (a.rep_gain_30d ?? -Infinity) || a.rank - b.rank);
+    else rows.sort((a,b) => a.rank - b.rank);
+    $('table-summary').textContent = rows.length + ' of ' + data.clans.length + ' clans · ' +
+      fmt(coverage.snapshot_dates) + ' saved snapshot date(s) in the last 31 days';
+    $('rows').innerHTML = rows.length ? rows.map(item =>
+      '<tr><td class="num rank">#' + fmt(item.rank) + '</td>' +
+      '<td><span class="clan-name">' + esc(item.name) + '</span><span class="master">' + esc(item.master || 'Master unavailable') + '</span></td>' +
+      '<td class="num">' + fmt(item.rep) + '</td><td class="num">' + delta(item.rep_gain_7d, true) + '</td>' +
+      '<td class="num">' + delta(item.rank_change_7d, true) + '</td>' +
+      '<td class="num">' + fmt(item.members) + '/' + fmt(item.capacity) + '</td>' +
+      '<td class="num">' + delta(item.rep_gain_30d, true) + '</td></tr>'
+    ).join('') : '<tr><td colspan="7" class="empty">No clans match this search.</td></tr>';
+    $('status').textContent = 'Updated ' + new Date(data.generated_at || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) +
+      ' · ' + fmt(data.clans.length) + ' clans · captured ' + dateLabel(coverage.latest_snapshot_date);
+    $('status').classList.remove('error');
+  }
+
+  async function load() {
+    if (busy) return;
+    busy = true; $('refresh').disabled = true;
+    try {
+      const response = await fetch('/api/clans?view=history', {cache:'no-store'});
+      if (!response.ok) {
+        let message = 'Clan history API returned HTTP ' + response.status;
+        try { const payload = await response.json(); if (payload.error) message = payload.error; } catch (_) {}
+        throw new Error(message);
+      }
+      const next = await response.json();
+      if (!next.coverage || !Array.isArray(next.clans) || !next.summary) throw new Error('Clan history API returned incomplete data.');
+      data = next; render();
+    } catch (error) {
+      $('status').textContent = error.message; $('status').classList.add('error');
+      if (!data) $('rows').innerHTML = '<tr><td colspan="7" class="empty error">Unable to load clan history. Please refresh the page.</td></tr>';
+    } finally { busy = false; $('refresh').disabled = false; }
+  }
+
+  $('refresh').addEventListener('click', load);
+  $('search').addEventListener('input', event => { query = event.target.value.trim().toLowerCase(); if (data) render(); });
+  $('sort').addEventListener('change', () => { if (data) render(); });
+  load(); setInterval(load, 300000);
+})();
+</script>
+</body></html>
