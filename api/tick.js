@@ -4,6 +4,8 @@ import {
   dispatchChaosWeeklySeasonReport,
   queueChaosAwardRaceAlert,
   dispatchChaosAwardRaceAlert,
+  queueChaosMemberRetentionAlerts,
+  dispatchChaosMemberRetentionAlerts,
 } from './_season-alerts.js';
 
 // An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
@@ -14,7 +16,7 @@ export default async function handler(req, res) {
   try {
     // Run the existing clan poll and the weekly Discord job concurrently so
     // delivery latency does not extend the bleed-check critical path.
-    const [s, weeklyReport, awardRace] = await Promise.all([
+    const [s, weeklyReport, awardRace, retention] = await Promise.all([
       runTick(10000),
       (async () => {
         try {
@@ -46,6 +48,19 @@ export default async function handler(req, res) {
           return null;
         }
       })(),
+      (async () => {
+        try {
+          const queued = await queueChaosMemberRetentionAlerts();
+          const delivered = await dispatchChaosMemberRetentionAlerts();
+          if (queued.status === 'queued' || ['sent', 'sent_unconfirmed', 'retry_scheduled'].includes(delivered.status)) {
+            return { queue: queued, delivery: delivered };
+          }
+          return null;
+        } catch (error) {
+          console.error('Member retention alert processing failed:', String(error && error.message || error).slice(0, 400));
+          return null;
+        }
+      })(),
     ]);
     const result = {
       ok: true,
@@ -54,6 +69,7 @@ export default async function handler(req, res) {
     };
     if (weeklyReport) result.weekly_report = weeklyReport;
     if (awardRace) result.award_race = awardRace;
+    if (retention) result.member_retention = retention;
     return res.status(200).json(result);
   } catch (e) {
     return res.status(502).json({ error: e.message });
