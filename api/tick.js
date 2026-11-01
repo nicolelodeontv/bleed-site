@@ -2,6 +2,8 @@ import { runTick } from './_lib.js';
 import {
   queueChaosWeeklySeasonReport,
   dispatchChaosWeeklySeasonReport,
+  queueChaosAwardRaceAlert,
+  dispatchChaosAwardRaceAlert,
 } from './_season-alerts.js';
 
 // An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
@@ -12,7 +14,7 @@ export default async function handler(req, res) {
   try {
     // Run the existing clan poll and the weekly Discord job concurrently so
     // delivery latency does not extend the bleed-check critical path.
-    const [s, weeklyReport] = await Promise.all([
+    const [s, weeklyReport, awardRace] = await Promise.all([
       runTick(10000),
       (async () => {
         try {
@@ -29,6 +31,21 @@ export default async function handler(req, res) {
           return null;
         }
       })(),
+      (async () => {
+        try {
+          const queued = await queueChaosAwardRaceAlert();
+          const delivered = await dispatchChaosAwardRaceAlert();
+          if (queued.status === 'queued' ||
+              ['sent', 'sent_unconfirmed', 'retry_scheduled'].includes(delivered.status)) {
+            return { queue: queued, delivery: delivered };
+          }
+          return null;
+        } catch (error) {
+          console.error('Season award race processing failed:',
+            String(error && error.message || error).slice(0, 400));
+          return null;
+        }
+      })(),
     ]);
     const result = {
       ok: true,
@@ -36,6 +53,7 @@ export default async function handler(req, res) {
       bleeding: Object.keys(s.bleeding),
     };
     if (weeklyReport) result.weekly_report = weeklyReport;
+    if (awardRace) result.award_race = awardRace;
     return res.status(200).json(result);
   } catch (e) {
     return res.status(502).json({ error: e.message });
