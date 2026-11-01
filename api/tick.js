@@ -8,6 +8,8 @@ import {
   dispatchChaosMemberRetentionAlerts,
   queueChaosClanHealthAlerts,
   dispatchChaosClanHealthAlerts,
+  queueChaosClanRivalryAlerts,
+  dispatchChaosClanRivalryAlerts,
 } from './_season-alerts.js';
 
 // An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
@@ -89,6 +91,20 @@ export default async function handler(req, res) {
     if (awardRace) result.award_race = awardRace;
     if (retention) result.member_retention = retention;
     if (clanHealth) result.clan_health = clanHealth;
+
+    try {
+      const queued = s.stale || !Array.isArray(s.clans) || !s.clans.length
+        ? { status: 'skipped_stale_snapshot' }
+        : await queueChaosClanRivalryAlerts(s.clans, s.checked_at);
+      const delivered = await dispatchChaosClanRivalryAlerts();
+      if (queued.status === 'queued' || queued.status === 'seeded' ||
+          ['sent', 'sent_unconfirmed', 'retry_scheduled'].includes(delivered.status)) {
+        result.clan_rivalry = { queue: queued, delivery: delivered };
+      }
+    } catch (error) {
+      console.error('Clan rivalry alert processing failed:',
+        String(error && error.message || error).slice(0, 400));
+    }
     return res.status(200).json(result);
   } catch (e) {
     return res.status(502).json({ error: e.message });

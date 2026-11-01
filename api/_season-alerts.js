@@ -1611,3 +1611,241 @@ export async function dispatchChaosClanHealthAlerts() {
     return { status: 'retry_scheduled', alerts: alerts.length, rescheduled };
   }
 }
+
+
+// ---------- Clan Rivalry rank defense alerts ----------
+
+export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
+  if (!SUPABASE_URL || !KEY) return { status: 'not_configured' };
+  if (!Array.isArray(clans) || !clans.length) return { status: 'no_snapshot' };
+
+  const ranked = clans
+    .filter(clan => clan && clan.name && Number.isSafeInteger(Number(clan.rank)) &&
+      Number(clan.rank) > 0 && Number.isSafeInteger(Number(clan.rep)) && Number(clan.rep) >= 0)
+    .map(clan => ({ name: String(clan.name), rank: Number(clan.rank), rep: Number(clan.rep) }))
+    .sort((a, b) => a.rank - b.rank);
+  if (!ranked.length) return { status: 'no_snapshot' };
+
+  const chaosIndex = ranked.findIndex(clan => clan.name.toLowerCase() === 'chaos');
+  if (chaosIndex < 0) return { status: 'chaos_not_ranked', clan_count: ranked.length };
+
+  const chaos = ranked[chaosIndex];
+  const threat = ranked[chaosIndex + 1] || null;
+  const activeSeasonResponse = await fetch(
+    REST + '/chaos_seasons?select=season_number&status=eq.active&order=season_number.desc&limit=1',
+    { headers: H, signal: AbortSignal.timeout(TIMEOUT) }
+  );
+  if (!activeSeasonResponse.ok) {
+    throw new Error('Clan rivalry active-season lookup failed: HTTP ' + activeSeasonResponse.status);
+  }
+  const seasons = await activeSeasonResponse.json();
+  const seasonNumber = Array.isArray(seasons) && seasons[0]
+    ? Number(seasons[0].season_number) : 0;
+  if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) {
+    return { status: 'no_active_season' };
+  }
+
+  const payload = {
+    p_season_number: seasonNumber,
+    p_rank: chaos.rank,
+    p_rep: chaos.rep,
+    p_threat_clan: threat ? threat.name : null,
+    p_threat_gap: threat ? chaos.rep - threat.rep : null,
+    p_clans: ranked,
+    p_snapshot_at: Number(snapshotAt) || Date.now(),
+  };
+  const response = await fetch(REST + '/rpc/process_chaos_clan_rivalry_snapshot', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 350);
+    throw new Error('Clan rivalry snapshot processing failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  return response.json();
+}
+
+async function finishClanRivalryAlert(alert, status, options = {}) {
+  const response = await fetch(REST + '/rpc/finish_chaos_clan_rivalry_alert', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({
+      p_id: Number(alert.id),
+      p_attempt_count: Number(alert.attempt_count),
+      p_status: status,
+      p_now: Date.now(),
+      p_message_id: options.message_id || null,
+      p_error: options.error || null,
+      p_retry_at: Number(options.retry_at || 0),
+    }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    throw new Error('Clan rivalry alert completion failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  return response.json();
+}
+
+function makeClanRivalryEmbed(alert) {
+  const p = alert.payload && typeof alert.payload === 'object' ? alert.payload : {};
+  const season = Number(p.season_number || 0);
+  const rank = Number(p.current_rank || 0);
+  const rep = Number(p.chaos_rep || 0);
+  const at = Number(p.snapshot_at || alert.created_at || Date.now());
+  const fields = [];
+  let color = 0xf5c542;
+  let title = '📊 Chaos clan ranking update';
+  let description = 'The latest clan ranking has been processed.';
+
+  if (alert.event_type === 'rank_gain') {
+    color = 0x3ecf8e;
+    title = '🏆 Chaos climbed the clan rankings';
+    description = 'Chaos moved from **#' + Number(p.previous_rank || 0) + '** to **#' +
+      rank + '** in the live ranking.';
+    const passed = Array.isArray(p.passed_clans) ? p.passed_clans.slice(0, 8) : [];
+    fields.push({
+      name: 'Clans overtaken',
+      value: passed.length
+        ? passed.map(row => '**#' + Number(row.rank || 0) + '** · ' + safeText(row.name)).join('\n').slice(0, 1024)
+        : 'The rank improved, but no individual clan transition was available.',
+      inline: false,
+    });
+  } else if (alert.event_type === 'rank_loss') {
+    color = 0xff6975;
+    title = '⚠️ Chaos lost a ranking position';
+    description = 'Chaos moved from **#' + Number(p.previous_rank || 0) + '** to **#' +
+      rank + '**. A rival moved ahead in the live ranking.';
+    const passed = Array.isArray(p.passed_by) ? p.passed_by.slice(0, 8) : [];
+    fields.push({
+      name: 'Clans now ahead',
+      value: passed.length
+        ? passed.map(row => '**#' + Number(row.rank || 0) + '** · ' + safeText(row.name)).join('\n').slice(0, 1024)
+        : 'The rank changed, but the overtaking clan could not be resolved.',
+      inline: false,
+    });
+  } else if (alert.event_type === 'threat_warning') {
+    const threshold = Number(p.threshold || 500);
+    const gap = Number(p.gap || 0);
+    color = threshold <= 100 ? 0xff4d5a : threshold <= 250 ? 0xff6975 : 0xf5c542;
+    title = '🚨 A rival is closing in on Chaos';
+    const gapLabel = gap > 0 ? gap.toLocaleString('en-US') + ' reputation behind Chaos'
+      : gap === 0 ? 'tied with Chaos on reputation'
+        : Math.abs(gap).toLocaleString('en-US') + ' reputation ahead of Chaos';
+    description = '**' + safeText(p.rival_clan) + '** is ' + gapLabel +
+      ' and has entered the **' + threshold.toLocaleString('en-US') +
+      '-reputation warning zone**.';
+    fields.push({
+      name: 'Current position',
+      value: 'Chaos **#' + rank + '** · **' + rep.toLocaleString('en-US') + ' rep**',
+      inline: true,
+    }, {
+      name: 'Warning level',
+      value: '**' + threshold.toLocaleString('en-US') + ' rep**',
+      inline: true,
+    });
+  } else if (alert.event_type === 'lead_recovered') {
+    color = 0x3ecf8e;
+    title = '🛡️ Chaos rebuilt its safe lead';
+    description = 'Chaos is now **' + Number(p.gap || 0).toLocaleString('en-US') +
+      ' reputation ahead of ' + safeText(p.rival_clan) +
+      '**, restoring a lead of more than ' + Number(p.safe_lead || 500).toLocaleString('en-US') + ' rep.';
+    fields.push({
+      name: 'Current position',
+      value: 'Chaos **#' + rank + '** · **' + rep.toLocaleString('en-US') + ' rep**',
+      inline: true,
+    });
+  }
+
+  fields.push({
+    name: 'Tracked season',
+    value: season ? 'Season **' + season + '**' : 'Season unavailable',
+    inline: true,
+  });
+  return {
+    color,
+    title,
+    description,
+    fields,
+    footer: { text: 'Bleed Watch · automated clan rank defense · Asia/Manila' },
+    timestamp: new Date(at).toISOString(),
+  };
+}
+
+export async function dispatchChaosClanRivalryAlerts() {
+  if (!SUPABASE_URL || !KEY) return { status: 'not_configured' };
+  if (!HAS_BOT && !HAS_WEBHOOK) {
+    return { status: 'not_configured', reason: 'Discord bot/channel or webhook is not configured' };
+  }
+
+  const response = await fetch(REST + '/rpc/claim_chaos_clan_rivalry_alerts', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ p_now: Date.now(), p_limit: 10, p_lease_ms: LEASE_MS }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 350);
+    throw new Error('Clan rivalry alert claim failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const claimed = await response.json();
+  const alerts = Array.isArray(claimed) ? claimed : [];
+  if (!alerts.length) return { status: 'idle' };
+
+  try {
+    const nonce = 'cr-' + String(alerts[0].id).slice(-8) + '-' +
+      String(alerts[alerts.length - 1].id).slice(-8);
+    const messageId = await deliver({
+      allowed_mentions: { parse: [] },
+      embeds: alerts.slice(0, 10).map(makeClanRivalryEmbed),
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 5,
+          label: 'Open Clan Ranking History',
+          url: SITE + '/clan-comparison.html',
+        }],
+      }],
+      nonce,
+      enforce_nonce: true,
+    });
+
+    let confirmed = 0;
+    for (const alert of alerts) {
+      try {
+        if (await finishClanRivalryAlert(alert, 'sent', { message_id: messageId }) === true) confirmed++;
+      } catch (error) {
+        console.error('Clan rivalry alert delivered but status was not confirmed:',
+          Number(alert.id), String(error && error.message || error).slice(0, 250));
+      }
+    }
+    return confirmed === alerts.length
+      ? { status: 'sent', alerts: alerts.length, message_id: messageId }
+      : { status: 'sent_unconfirmed', alerts: alerts.length, confirmed };
+  } catch (error) {
+    const now = Date.now();
+    let rescheduled = 0;
+    for (const alert of alerts) {
+      const attempt = Math.max(1, Number(alert.attempt_count) || 1);
+      const backoff = Math.min(4 * 60 * 1000, 30 * 1000 * Math.pow(2, attempt - 1));
+      try {
+        if (await finishClanRivalryAlert(alert, 'failed', {
+          error: String(error && error.message ? error.message : error).slice(0, 500),
+          retry_at: now + backoff,
+        }) === true) rescheduled++;
+      } catch (updateError) {
+        console.error('Could not schedule clan rivalry alert retry:',
+          Number(alert.id), String(updateError.message || updateError).slice(0, 250));
+      }
+    }
+    console.error('Clan rivalry Discord delivery failed:',
+      String(error && error.message ? error.message : error).slice(0, 500));
+    return { status: 'retry_scheduled', alerts: alerts.length, rescheduled };
+  }
+}
