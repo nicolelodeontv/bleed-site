@@ -23,6 +23,38 @@ input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934
 th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}tr:last-child td{border-bottom:0}
 .num{text-align:right;font-variant-numeric:tabular-nums}.rank{color:var(--mute);font-weight:750}.clan-name{font-weight:700}.master{display:block;color:var(--mute);font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis}
 .delta{font-weight:750;font-variant-numeric:tabular-nums}.up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--mute)}
+
+.profile-panel{margin:14px 0}
+.profile-headline{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
+.profile-headline strong{font-size:18px;letter-spacing:-.02em}
+.profile-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:12px 0}
+.profile-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:10px 11px;min-width:0}
+.profile-stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.profile-stat b{display:block;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-stat small{font-size:10px;color:var(--mute)}
+.trend-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.trend-card{background:#0b0b0f;border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.trend-card h3{margin:0;font-size:12px;font-weight:750}.trend-card .sub{font-size:11px}
+.trend-chart{min-height:130px;margin-top:8px}
+.trend-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart-grid{stroke:#292934;stroke-width:1;stroke-dasharray:3 4}
+.chart-axis{fill:var(--mute);font-size:10px}
+.chart-line{fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+.chart-rep .chart-line{stroke:var(--gold)}
+.chart-rank .chart-line{stroke:var(--blue)}
+.chart-members .chart-line{stroke:var(--green)}
+.chart-dot{stroke:#0b0b0f;stroke-width:2}
+.chart-rep .chart-dot{fill:var(--gold)}
+.chart-rank .chart-dot{fill:var(--blue)}
+.chart-members .chart-dot{fill:var(--green)}
+.chart-note{padding:7px 8px;border-radius:8px;background:#101015;color:var(--mute);font-size:11px;margin-top:5px}
+.clan-profile-link{display:inline;padding:0;border:0;background:transparent;color:var(--gold);font-size:13px;font-weight:750;text-align:left}
+.clan-profile-link:hover{border:0;text-decoration:underline}
+.profile-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.profile-toolbar select{min-width:220px;max-width:100%}
+@media(max-width:1100px){.profile-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){.profile-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr}.profile-stat b{font-size:17px}.profile-toolbar,.profile-toolbar select{width:100%}}
+
 .statusline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}.error{color:var(--red)}
 @media(max-width:1000px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:680px){main{padding:18px 12px 48px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.stat b{font-size:20px}h1{font-size:20px}.panel{padding:12px}input{min-width:0;width:100%}.toolbar{width:100%}.toolbar>*{flex:1}}
 </style>
@@ -39,6 +71,27 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
   <div class="stat"><span>Consecutive days</span><b id="coverage-days">—</b><small>Daily ranking history</small></div>
   <div class="stat"><span>7-day total rep change</span><b id="weekly-change">—</b><small id="weekly-detail">Waiting for exact baseline</small></div>
   <div class="stat"><span>30-day total rep change</span><b id="monthly-change">—</b><small id="monthly-detail">Waiting for exact baseline</small></div>
+</section>
+<section class="panel profile-panel" id="profile-panel">
+  <div class="panel-head">
+    <div><h2>Clan Performance Profile</h2><div class="sub">Explore daily reputation, ranking position and roster history</div></div>
+    <div class="profile-toolbar"><label class="sub" for="profile-select">Choose clan</label><select id="profile-select" aria-label="Choose a clan profile"></select></div>
+  </div>
+  <div class="profile-headline"><strong id="profile-name">Loading clan…</strong><span id="profile-meta" class="sub">Loading daily history…</span></div>
+  <div class="profile-stats">
+    <div class="profile-stat"><span>Current reputation</span><b id="profile-rep">—</b><small>Latest saved total</small></div>
+    <div class="profile-stat"><span>Current rank</span><b id="profile-rank">—</b><small>Lower number is better</small></div>
+    <div class="profile-stat"><span>Roster</span><b id="profile-roster">—</b><small>Members / capacity</small></div>
+    <div class="profile-stat"><span>7-day rep change</span><b id="profile-week-rep">—</b><small id="profile-week-date">Exact baseline required</small></div>
+    <div class="profile-stat"><span>7-day rank movement</span><b id="profile-week-rank">—</b><small>Positive means climbed</small></div>
+    <div class="profile-stat"><span>30-day rep change</span><b id="profile-month-rep">—</b><small id="profile-month-date">Exact baseline required</small></div>
+  </div>
+  <div class="trend-grid">
+    <article class="trend-card"><div class="panel-head"><div><h3>Reputation</h3><div class="sub">Daily cumulative total</div></div></div><div id="rep-chart" class="trend-chart"><div class="empty">Loading trend…</div></div></article>
+    <article class="trend-card"><div class="panel-head"><div><h3>Ranking position</h3><div class="sub">Higher on the chart means a better rank</div></div></div><div id="rank-chart" class="trend-chart"><div class="empty">Loading trend…</div></div></article>
+    <article class="trend-card"><div class="panel-head"><div><h3>Roster size</h3><div class="sub">Recorded member count</div></div></div><div id="members-chart" class="trend-chart"><div class="empty">Loading trend…</div></div></article>
+  </div>
+  <div class="statusline"><span id="profile-coverage" class="sub">Waiting for historical snapshots…</span><span class="sub">Daily values are captured once per Manila calendar day</span></div>
 </section>
 <div class="grid">
   <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
@@ -89,6 +142,121 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     ).join('');
   }
 
+  function renderProfileChart(target, points, field, options) {
+    const holder = $(target);
+    const valid = (Array.isArray(points) ? points : []).filter(point =>
+      Number.isFinite(Number(point[field]))
+    );
+    if (!valid.length) {
+      holder.innerHTML = '<div class="empty">No saved points for this metric yet.</div>';
+      return;
+    }
+
+    const width = 640, height = 176, left = 54, right = 14, top = 12, bottom = 30;
+    const plotWidth = width - left - right, plotHeight = height - top - bottom;
+    const values = valid.map(point => Number(point[field]));
+    const actualMin = Math.min(...values), actualMax = Math.max(...values);
+    const span = actualMax - actualMin;
+    const pad = span ? span * 0.12 : Math.max(Math.abs(actualMax) * 0.025, 1);
+    const min = Math.max(options.floor === undefined ? -Infinity : options.floor, actualMin - pad);
+    const max = actualMax + pad;
+    const range = Math.max(max - min, 1);
+    const x = index => valid.length === 1
+      ? left + plotWidth / 2
+      : left + index / (valid.length - 1) * plotWidth;
+    const y = value => {
+      const normalized = (Number(value) - min) / range;
+      return top + (options.lowerIsBetter ? normalized : 1 - normalized) * plotHeight;
+    };
+    const ticks = [0,1,2,3].map(index => {
+      const fraction = index / 3;
+      const value = options.lowerIsBetter
+        ? min + range * fraction
+        : max - range * fraction;
+      const label = options.rank ? '#' + Math.round(value) : fmt(Math.round(value));
+      const yy = top + plotHeight * fraction;
+      return '<line class="chart-grid" x1="' + left + '" y1="' + yy.toFixed(1) +
+        '" x2="' + (width-right) + '" y2="' + yy.toFixed(1) + '"></line>' +
+        '<text class="chart-axis" x="' + (left-8) + '" y="' + (yy+3.5).toFixed(1) +
+        '" text-anchor="end">' + esc(label) + '</text>';
+    }).join('');
+    const coords = valid.map((point,index) => ({point,x:x(index),y:y(point[field])}));
+    const line = coords.length > 1
+      ? '<polyline class="chart-line" points="' + coords.map(point =>
+          point.x.toFixed(1) + ',' + point.y.toFixed(1)).join(' ') + '"></polyline>'
+      : '';
+    const dots = coords.map(item => {
+      const extra = options.rank ? 'rank #' + fmt(item.point[field]) : fmt(item.point[field]) + options.unit;
+      return '<circle class="chart-dot" cx="' + item.x.toFixed(1) + '" cy="' +
+        item.y.toFixed(1) + '" r="4.5"><title>' + esc(dateLabel(item.point.date) + ' · ' + extra) +
+        '</title></circle>';
+    }).join('');
+    const indexes = valid.length === 1 ? [0] : Array.from(new Set([0,Math.floor((valid.length-1)/2),valid.length-1]));
+    const dates = indexes.map(index => {
+      const xx = x(index);
+      const anchor = index === 0 ? 'start' : index === valid.length-1 ? 'end' : 'middle';
+      return '<text class="chart-axis" x="' + xx.toFixed(1) + '" y="' + (height-7) +
+        '" text-anchor="' + anchor + '">' + esc(dateLabel(valid[index].date)) + '</text>';
+    }).join('');
+    holder.innerHTML = '<svg class="chart-' + options.chartClass + '" viewBox="0 0 ' + width + ' ' + height +
+      '" role="img" aria-label="' + esc(options.aria) + '">' + ticks + line + dots + dates + '</svg>' +
+      (valid.length === 1
+        ? '<div class="chart-note">One daily point is saved. The trend line will appear after the next daily snapshot.</div>'
+        : '<div class="chart-note">' + valid.length + ' saved daily points · ' +
+          esc(dateLabel(valid[0].date)) + ' to ' + esc(dateLabel(valid[valid.length-1].date)) + '</div>');
+  }
+
+  function renderProfile() {
+    if (!data || !Array.isArray(data.clans) || !data.clans.length) return;
+    const clans = data.clans.slice().sort((a,b) => a.rank - b.rank);
+    const selected = $('profile-select').value;
+    const preferred = selected && clans.some(clan => clan.name === selected)
+      ? selected
+      : (clans.some(clan => clan.name === 'Chaos') ? 'Chaos' : clans[0].name);
+    $('profile-select').innerHTML = clans.map(clan =>
+      '<option value="' + esc(clan.name) + '">' + '#' + fmt(clan.rank) + ' · ' + esc(clan.name) + '</option>'
+    ).join('');
+    $('profile-select').value = preferred;
+    const profile = clans.find(clan => clan.name === preferred) || clans[0];
+    const history = Array.isArray(profile.history) ? profile.history : [];
+    const firstDate = history.length ? history[0].date : null;
+    const lastDate = history.length ? history[history.length-1].date : data.coverage.latest_snapshot_date;
+
+    $('profile-name').textContent = profile.name;
+    $('profile-meta').textContent = (profile.master ? 'Master: ' + profile.master + ' · ' : '') +
+      history.length + ' saved day' + (history.length === 1 ? '' : 's') +
+      (firstDate ? ' · ' + dateLabel(firstDate) + ' to ' + dateLabel(lastDate) : '');
+    $('profile-rep').textContent = fmt(profile.rep);
+    $('profile-rank').textContent = '#' + fmt(profile.rank);
+    $('profile-roster').textContent = fmt(profile.members) + '/' + fmt(profile.capacity);
+    $('profile-week-rep').innerHTML = delta(profile.rep_gain_7d, true);
+    $('profile-week-rank').innerHTML = profile.rank_change_7d === null || profile.rank_change_7d === undefined
+      ? '<span class="flat">Building</span>'
+      : '<span class="delta ' + (profile.rank_change_7d > 0 ? 'up' : profile.rank_change_7d < 0 ? 'down' : 'flat') +
+        '">' + signed(profile.rank_change_7d) + ' places</span>';
+    $('profile-month-rep').innerHTML = delta(profile.rep_gain_30d, true);
+    $('profile-week-date').textContent = data.coverage.weekly_baseline_date
+      ? 'From ' + dateLabel(data.coverage.weekly_baseline_date)
+      : 'Waiting for exact 7-day baseline';
+    $('profile-month-date').textContent = data.coverage.monthly_baseline_date
+      ? 'From ' + dateLabel(data.coverage.monthly_baseline_date)
+      : 'Waiting for exact 30-day baseline';
+    $('profile-coverage').textContent = history.length
+      ? 'Profile history: ' + history.length + ' saved date(s). Gaps are left visible; no daily values are interpolated.'
+      : 'No historical snapshots are available for this clan yet.';
+    renderProfileChart('rep-chart', history, 'rep', {
+      chartClass:'rep', unit:' rep', aria:profile.name + ' daily reputation history',
+    });
+    renderProfileChart('rank-chart', history, 'rank', {
+      chartClass:'rank', rank:true, lowerIsBetter:true, floor:1,
+      aria:profile.name + ' ranking position history',
+    });
+    renderProfileChart('members-chart', history, 'members', {
+      chartClass:'members', unit:' members', floor:0,
+      aria:profile.name + ' daily member count history',
+    });
+  }
+
   function render() {
     const coverage = data.coverage || {}, summary = data.summary || {};
     $('clan-count').textContent = fmt(summary.clan_count);
@@ -116,6 +284,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     const risers = data.clans.slice().sort((a,b) => (b.rank_change_7d ?? -Infinity) - (a.rank_change_7d ?? -Infinity));
     renderLeaders('top-gainers', gainers, 'rep_gain_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
     renderLeaders('top-risers', risers, 'rank_change_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
+    renderProfile();
 
     const sort = $('sort').value;
     const rows = data.clans.filter(item => (item.name + ' ' + item.master).toLowerCase().includes(query)).slice();
@@ -127,7 +296,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
       fmt(coverage.snapshot_dates) + ' saved snapshot date(s) in the last 31 days';
     $('rows').innerHTML = rows.length ? rows.map(item =>
       '<tr><td class="num rank">#' + fmt(item.rank) + '</td>' +
-      '<td><span class="clan-name">' + esc(item.name) + '</span><span class="master">' + esc(item.master || 'Master unavailable') + '</span></td>' +
+      '<td><button class="clan-profile-link" type="button" data-clan="' + esc(item.name) + '">' + esc(item.name) + '</button><span class="master">' + esc(item.master || 'Master unavailable') + '</span></td>' +
       '<td class="num">' + fmt(item.rep) + '</td><td class="num">' + delta(item.rep_gain_7d, true) + '</td>' +
       '<td class="num">' + delta(item.rank_change_7d, true) + '</td>' +
       '<td class="num">' + fmt(item.members) + '/' + fmt(item.capacity) + '</td>' +
@@ -157,6 +326,14 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     } finally { busy = false; $('refresh').disabled = false; }
   }
 
+  $('profile-select').addEventListener('change', renderProfile);
+  $('rows').addEventListener('click', event => {
+    const button = event.target.closest('button[data-clan]');
+    if (!button || !data) return;
+    $('profile-select').value = button.getAttribute('data-clan');
+    renderProfile();
+    $('profile-panel').scrollIntoView({behavior:'smooth', block:'start'});
+  });
   $('refresh').addEventListener('click', load);
   $('search').addEventListener('input', event => { query = event.target.value.trim().toLowerCase(); if (data) render(); });
   $('sort').addEventListener('change', () => { if (data) render(); });
