@@ -16,7 +16,7 @@ const HAS_BOT = !!(DISCORD_BOT_TOKEN && DISCORD_CHANNEL_ID);
 const HAS_WEBHOOK = !!DISCORD_WEBHOOK_URL;
 const SITE = (SITE_URL || 'https://bleed-site-tawny.vercel.app').replace(/\/+$/, '');
 
-const safeText = value => String(value == null ? '' : value)
+export const safeText = value => String(value == null ? '' : value)
   .replace(/([\\*_~\`|>])/g, '\\$1')
   .replace(/@/g, '@\u200b')
   .slice(0, 72);
@@ -177,7 +177,7 @@ async function postWithWebhook(payload) {
   return message && message.id ? String(message.id) : null;
 }
 
-async function deliver(payload) {
+export async function deliver(payload) {
   if (HAS_BOT) {
     const result = await postWithBot(payload);
     if (result.ok) return result.message_id;
