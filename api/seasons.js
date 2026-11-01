@@ -915,7 +915,242 @@ async function handleSeasonComparison(req, res) {
 }
 
 
+
+function retentionDateOnly(value) {
+  return String(value || '').slice(0, 10);
+}
+
+function retentionAddDays(value, amount) {
+  const date = new Date(retentionDateOnly(value) + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function retentionDayDiff(from, to) {
+  const a = new Date(retentionDateOnly(from) + 'T00:00:00Z').getTime();
+  const b = new Date(retentionDateOnly(to) + 'T00:00:00Z').getTime();
+  return Number.isFinite(a) && Number.isFinite(b)
+    ? Math.max(0, Math.floor((b - a) / 86400000)) : 0;
+}
+
+function retentionManilaDay(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(value));
+}
+
+async function handleMemberRetention(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+  if (!SUPABASE_URL || !KEY) {
+    return res.status(500).json({ error: 'member retention is not configured' });
+  }
+
+  try {
+    const seasonRows = await read(
+      '/chaos_seasons?select=season_number,started_at,ended_at,status&order=season_number.desc&limit=100',
+      'Retention season history'
+    );
+    const seasons = Array.isArray(seasonRows) ? seasonRows : [];
+    const season = seasons.find(row => row.status === 'active') || seasons[0] || null;
+    if (!season) return res.status(404).json({ error: 'No tracked Chaos season was found.' });
+
+    const seasonNumber = Number(season.season_number);
+    const [statsRaw, dailyRaw, rankingsRaw] = await Promise.all([
+      read('/chaos_season_member_stats?select=season_number,member,season_gain,gain_events,active_days,last_gain_at,last_gain_day,updated_at&season_number=eq.' +
+        seasonNumber + '&order=member.asc&limit=1000', 'Retention member totals'),
+      read('/chaos_season_daily_stats?select=member,activity_date,daily_gain,gain_events&season_number=eq.' +
+        seasonNumber + '&order=activity_date.asc,member.asc&limit=50000', 'Retention daily activity'),
+      read('/chaos_season_daily_rankings?select=snapshot_date&season_number=eq.' +
+        seasonNumber + '&order=snapshot_date.asc&limit=50000', 'Retention daily coverage'),
+    ]);
+
+    const stats = Array.isArray(statsRaw) ? statsRaw : [];
+    const daily = Array.isArray(dailyRaw) ? dailyRaw : [];
+    const rankRows = Array.isArray(rankingsRaw) ? rankingsRaw : [];
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const seasonStartDay = retentionManilaDay(season.started_at) ||
+      retentionDateOnly(season.started_at);
+    const snapshotDates = Array.from(new Set(rankRows.map(row =>
+      retentionDateOnly(row.snapshot_date)
+    ).filter(Boolean))).sort();
+    const dailyDates = Array.from(new Set(daily.map(row =>
+      retentionDateOnly(row.activity_date)
+    ).filter(Boolean))).sort();
+    const coverageDates = snapshotDates.length ? snapshotDates : dailyDates;
+    const coverageStart = coverageDates[0] || dailyDates[0] || null;
+    const coverageEnd = coverageDates[coverageDates.length - 1] || dailyDates[dailyDates.length - 1] || null;
+
+    const dailyByMember = new Map();
+    for (const row of daily) {
+      const name = String(row.member || '');
+      if (!name) continue;
+      if (!dailyByMember.has(name)) dailyByMember.set(name, []);
+      dailyByMember.get(name).push({
+        day: retentionDateOnly(row.activity_date),
+        gain: Number(row.daily_gain || 0),
+        events: Number(row.gain_events || 0),
+      });
+    }
+
+    const previousStart = retentionAddDays(today, -14);
+    const previousEnd = retentionAddDays(today, -8);
+    const currentStart = retentionAddDays(today, -7);
+    const currentEnd = retentionAddDays(today, -1);
+    const requiredDates = [];
+    for (let date = previousStart; date <= currentEnd; date = retentionAddDays(date, 1)) {
+      requiredDates.push(date);
+    }
+    const covered = new Set(snapshotDates);
+    const coverageComplete = snapshotDates.length >= 14 &&
+      requiredDates.every(date => covered.has(date));
+    const trendAvailable = coverageComplete && daily.length > 0;
+
+    const members = stats.map(row => {
+      const member = String(row.member || '');
+      const memberDays = (dailyByMember.get(member) || []).slice()
+        .sort((a, b) => a.day.localeCompare(b.day));
+      const latestDailyDay = memberDays.length ? memberDays[memberDays.length - 1].day : null;
+      const lastGainAt = row.last_gain_at == null ? null : Number(row.last_gain_at);
+      const lastGainDay = retentionDateOnly(row.last_gain_day) ||
+        latestDailyDay || retentionManilaDay(lastGainAt);
+      const hasGain = !!lastGainDay || Number(row.season_gain || 0) > 0;
+      const referenceDay = lastGainDay || seasonStartDay || today;
+      const quietDays = retentionDayDiff(referenceDay, today);
+
+      let status;
+      if (!hasGain) {
+        status = quietDays >= 14 ? 'long_inactive'
+          : quietDays >= 7 ? 'inactive' : 'not_yet_active';
+      } else {
+        status = quietDays >= 14 ? 'long_inactive'
+          : quietDays >= 7 ? 'inactive'
+            : quietDays >= 3 ? 'cooling' : 'active';
+      }
+
+      let previousGain = 0, currentGain = 0;
+      let previousActiveDays = 0, currentActiveDays = 0;
+      const activityDates = new Set();
+      for (const item of memberDays) {
+        activityDates.add(item.day);
+        if (item.day >= previousStart && item.day <= previousEnd) {
+          previousGain += item.gain;
+          if (item.gain > 0) previousActiveDays++;
+        } else if (item.day >= currentStart && item.day <= currentEnd) {
+          currentGain += item.gain;
+          if (item.gain > 0) currentActiveDays++;
+        }
+      }
+
+      const chronologicalDays = Array.from(activityDates).sort();
+      let returningAfterDays = null;
+      if (chronologicalDays.length >= 2 &&
+          chronologicalDays[chronologicalDays.length - 1] >= currentStart) {
+        const last = chronologicalDays[chronologicalDays.length - 1];
+        const prior = chronologicalDays[chronologicalDays.length - 2];
+        const gap = retentionDayDiff(prior, last);
+        if (gap >= 7) returningAfterDays = gap - 1;
+      }
+
+      const activityDrop = trendAvailable && previousGain >= 25 &&
+        previousActiveDays >= 2 && currentGain <= previousGain * 0.5;
+      const dropPercent = trendAvailable && previousGain > 0
+        ? Math.max(0, ((previousGain - currentGain) / previousGain) * 100) : null;
+
+      return {
+        member,
+        season_gain: Number(row.season_gain || 0),
+        gain_events: Number(row.gain_events || 0),
+        active_days: Number(row.active_days || 0),
+        last_gain_at: lastGainAt,
+        last_gain_day: lastGainDay,
+        has_gain: hasGain,
+        quiet_days: quietDays,
+        status,
+        returning: returningAfterDays != null,
+        returning_after_days: returningAfterDays,
+        previous_7d_gain: previousGain,
+        current_7d_gain: currentGain,
+        previous_7d_active_days: previousActiveDays,
+        current_7d_active_days: currentActiveDays,
+        activity_drop: !!activityDrop,
+        drop_percent: dropPercent,
+      };
+    });
+
+    const summary = {
+      tracked_members: members.length,
+      active: members.filter(row => row.status === 'active').length,
+      cooling: members.filter(row => row.status === 'cooling').length,
+      inactive: members.filter(row => row.status === 'inactive' || row.status === 'long_inactive').length,
+      long_inactive: members.filter(row => row.status === 'long_inactive').length,
+      not_yet_active: members.filter(row => row.status === 'not_yet_active').length,
+      returning: members.filter(row => row.returning).length,
+      declining: trendAvailable ? members.filter(row => row.activity_drop).length : null,
+    };
+
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=30');
+    return res.status(200).json({
+      generated_at: Date.now(),
+      timezone: 'Asia/Manila',
+      season: {
+        season_number: seasonNumber,
+        status: season.status,
+        started_at: Number(season.started_at || 0),
+        started_day: seasonStartDay,
+        ended_at: season.ended_at == null ? null : Number(season.ended_at),
+      },
+      summary,
+      members,
+      returning_members: members.filter(row => row.returning)
+        .sort((a, b) => b.returning_after_days - a.returning_after_days ||
+          b.season_gain - a.season_gain),
+      declining_members: trendAvailable
+        ? members.filter(row => row.activity_drop)
+          .sort((a, b) => Number(b.drop_percent || 0) - Number(a.drop_percent || 0))
+        : [],
+      coverage: {
+        coverage_start: coverageStart,
+        coverage_end: coverageEnd,
+        tracked_days: coverageDates.length,
+        complete_14_day_baseline: coverageComplete,
+        note: coverageComplete
+          ? 'Daily snapshots cover both complete seven-day comparison windows.'
+          : 'Daily trend comparisons remain disabled until each of the 14 calendar days in both complete comparison windows has a saved ranking snapshot.',
+      },
+      trend: {
+        available: trendAvailable,
+        comparison: 'two completed seven-day periods; today is excluded',
+        previous_start: previousStart,
+        previous_end: previousEnd,
+        current_start: currentStart,
+        current_end: currentEnd,
+        decline_threshold_percent: 50,
+        minimum_previous_gain: 25,
+        minimum_previous_active_days: 2,
+      },
+      notes: {
+        inactivity: 'Quiet days are measured from the last recorded positive reputation gain, or from the season start for members with no recorded gain this season.',
+        returning: 'A returning member has a recorded active day after a gap of at least seven calendar days between active days in this season.',
+        daily_history: 'No activity is inferred before the saved daily ledger and ranking snapshot coverage. Drop comparisons are enabled only when both complete seven-day windows have confirmed daily coverage.',
+        alerts: 'Discord digests are generated only when member statistics are fresh and a member crosses the 7-day or 14-day inactivity threshold. Each member is notified once per season at each threshold.',
+      },
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: error && error.message ? error.message : 'member retention is unavailable',
+    });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.query.view === 'retention') return handleMemberRetention(req, res);
   if (req.query.view === 'comparison') return handleSeasonComparison(req, res);
   if (req.query.view === 'analytics') return handleSeasonAnalytics(req,res);
   if (req.query.view === 'records') return handleAllTimeRecords(res);
