@@ -183,14 +183,35 @@ input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934
       return;
     }
     const items = [
-      ['participation','Participation',35,components.participation.score + '% · ' + components.participation.value + '/' + components.participation.denominator + ' members'],
-      ['momentum','Activity momentum',25,components.momentum.score + '% · ' + fmt(components.momentum.current_gain) + ' vs ' + fmt(components.momentum.previous_gain) + ' rep'],
-      ['balance','Contribution balance',20,components.balance.score + '% · ' + (components.balance.top_share_percent == null ? 'No gains recorded' : 'Top 20% share ' + components.balance.top_share_percent + '%')],
-      ['retention','Member retention',20,components.retention.score + '% · ' + components.retention.retained_members + '/' + components.retention.previous_active_members + ' members retained'],
+      {
+        title: 'Participation', weight: 35, score: components.participation.score,
+        detail: components.participation.value + '/' + components.participation.denominator + ' members active · ' +
+          components.participation.score + '/100 component score',
+      },
+      {
+        title: 'Activity momentum', weight: 25, score: components.momentum.score,
+        detail: fmt(components.momentum.current_gain) + ' vs ' +
+          fmt(components.momentum.previous_gain) + ' rep · ' +
+          components.momentum.score + '/100 component score',
+      },
+      {
+        title: 'Contribution balance', weight: 20, score: components.balance.score,
+        detail: (components.balance.top_share_percent == null
+          ? 'No gains recorded' : 'Top 20% share ' + components.balance.top_share_percent + '%') +
+          ' · ' + components.balance.score + '/100 component score',
+      },
+      {
+        title: 'Member retention', weight: 20, score: components.retention.score,
+        detail: components.retention.retained_members + '/' +
+          components.retention.previous_active_members + ' members retained · ' +
+          components.retention.score + '/100 component score',
+      },
     ];
     holder.innerHTML = items.map(item =>
-      '<div class="component"><div><strong>' + item[1] + '</strong><br><small>' + item[3] + '</small></div>' +
-      '<strong>' + item[2] + '%</strong><div class="meter"><span style="width:' + item[2] + '%"></span></div></div>'
+      '<div class="component"><div><strong>' + item.title + ' · ' + item.weight +
+      '% weight</strong><br><small>' + item.detail + '</small></div>' +
+      '<strong>' + item.score + '/100</strong><div class="meter"><span style="width:' +
+      Math.max(0, Math.min(100, Number(item.score) || 0)) + '%"></span></div></div>'
     ).join('');
   }
 
