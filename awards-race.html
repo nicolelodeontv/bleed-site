@@ -84,7 +84,7 @@ h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;col
 <section class="summary" aria-label="Awards race summary">
   <div class="stat"><span>Season leader</span><b id="mvp-leader">—</b><small id="mvp-meta">Season MVP race</small></div>
   <div class="stat"><span>Awards with contenders</span><b id="available-count">—</b><small>Of six award categories</small></div>
-  <div class="stat"><span>Eligible members</span><b id="eligible-count">—</b><small>Members with season records</small></div>
+  <div class="stat"><span>Tracked members</span><b id="eligible-count">—</b><small>Members in the season baseline</small></div>
   <div class="stat"><span>Previous comparison</span><b id="previous-season">—</b><small id="previous-meta">Tracked season baseline</small></div>
 </section>
 <h2 class="section-title">Current award standings</h2>
@@ -188,9 +188,9 @@ h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;col
     results.push(makeRace(defs[5],rookies,row=>row.season_gain,'No eligible newcomer has recorded a positive season gain yet.'));
     return results;
   }
-  function renderCard(race) {
+  function renderCard(race, activeSeason) {
     const def = race.def;
-    const head = '<div class="race-head"><div class="award-name"><span class="award-icon">'+def.icon+'</span>'+def.title+'</div><span class="provisional">PROVISIONAL</span></div>';
+    const head = '<div class="race-head"><div class="award-name"><span class="award-icon">'+def.icon+'</span>'+def.title+'</div><span class="provisional">'+(activeSeason?'PROVISIONAL':'SEASON CLOSED')+'</span></div>';
     if (!race.available) {
       return '<article class="race-card">'+head+'<div class="unavailable"><div><strong>'+(race.locked?'Waiting for previous season':'No current leader')+'</strong>'+esc(race.message||'No eligible contenders yet.')+'</div></div></article>';
     }
@@ -223,7 +223,7 @@ h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;col
     $('previous-meta').textContent=latest.previous_season?'Comparison baseline available':'No earlier tracked season yet';
     $('mvp-leader').textContent=mvp.available?(mvp.leaders.length===1?mvp.leaders[0].member:mvp.leaders.length+' tied'):'—';
     $('mvp-meta').textContent=mvp.available?mvp.def.format(mvp.leaderValue):'No positive season gain yet';
-    $('race-grid').innerHTML=races.map(renderCard).join('');
+    $('race-grid').innerHTML=races.map(race=>renderCard(race,season.status==='active')).join('');
   }
   async function requestSeason(number) {
     const query=number==null?'':'?season='+encodeURIComponent(number);
