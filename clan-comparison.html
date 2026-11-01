@@ -52,6 +52,36 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 .clan-profile-link:hover{border:0;text-decoration:underline}
 .profile-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .profile-toolbar select{min-width:220px;max-width:100%}
+.rivalry-panel{margin:14px 0}
+.rivalry-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
+.rivalry-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:11px 12px;min-width:0}
+.rivalry-stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.rivalry-stat b{display:block;font-size:21px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rivalry-stat small{display:block;font-size:10px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rivalry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.rivalry-card{background:#0b0b0f;border:1px solid var(--line);border-radius:12px;padding:13px;min-width:0}
+.rivalry-card h3{margin:0 0 10px;font-size:12px;font-weight:750}
+.rivalry-list{display:grid;gap:10px}
+.rival-row{min-width:0}
+.rival-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.rival-meta strong{display:block;font-size:12px;overflow-wrap:anywhere}
+.rival-meta small{display:block;color:var(--mute);font-size:10px}
+.rival-meta b{font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rival-meta .ahead{color:var(--red)}.rival-meta .behind{color:var(--green)}.rival-meta .tied{color:var(--mute)}
+.rival-track{height:7px;background:#202029;border-radius:99px;overflow:hidden;margin-top:5px}
+.rival-fill{height:100%;border-radius:99px;min-width:2px}
+.rival-fill-ahead{background:var(--red)}.rival-fill-behind{background:var(--green)}.rival-fill-tied{background:var(--mute)}
+.projection-label{display:block;color:var(--mute);font-size:11px;margin:0 0 5px}
+#projection-gain{width:100%;max-width:260px;min-width:0}
+.projection-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.projection-stat{border:1px solid var(--line);border-radius:9px;padding:9px;min-width:0}
+.projection-stat span{display:block;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.projection-stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.projection-note{color:var(--mute);font-size:10px;margin-top:4px}
+.rivalry-foot{color:var(--mute);font-size:11px;margin:11px 0 0}
+@media(max-width:900px){.rivalry-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.rivalry-grid{grid-template-columns:1fr}.rivalry-stat b{font-size:19px}}
+
 @media(max-width:1100px){.profile-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:680px){.profile-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr}.profile-stat b{font-size:17px}.profile-toolbar,.profile-toolbar select{width:100%}}
 
@@ -92,6 +122,38 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     <article class="trend-card"><div class="panel-head"><div><h3>Roster size</h3><div class="sub">Recorded member count</div></div></div><div id="members-chart" class="trend-chart"><div class="empty">Loading trend…</div></div></article>
   </div>
   <div class="statusline"><span id="profile-coverage" class="sub">Waiting for historical snapshots…</span><span class="sub">Daily values are captured once per Manila calendar day</span></div>
+</section>
+<section class="panel rivalry-panel" id="rivalry-panel">
+  <div class="panel-head">
+    <div><h2>Clan Rivalry &amp; Rank Defense</h2><div class="sub">Live reputation gaps around Chaos · no historical estimates</div></div>
+    <span class="sub" id="rivalry-date">Loading live ranking…</span>
+  </div>
+  <div class="rivalry-stats" aria-label="Chaos rank defense summary">
+    <div class="rivalry-stat"><span>Chaos current rank</span><b id="rivalry-rank">—</b><small id="rivalry-rep">— reputation</small></div>
+    <div class="rivalry-stat"><span>To pass the next rank</span><b id="rivalry-chase">—</b><small id="rivalry-chase-note">—</small></div>
+    <div class="rivalry-stat"><span>Lead over the clan below</span><b id="rivalry-defense">—</b><small id="rivalry-defense-note">—</small></div>
+    <div class="rivalry-stat"><span>To reach #1</span><b id="rivalry-first">—</b><small id="rivalry-first-note">—</small></div>
+  </div>
+  <div class="rivalry-grid">
+    <article class="rivalry-card">
+      <h3>Closest ranking rivals</h3>
+      <div class="rivalry-list" id="rivalry-list"><div class="empty">Waiting for the latest clan ranking…</div></div>
+      <p class="rivalry-foot">Red bars show reputation held by clans ahead of Chaos. Green bars show Chaos’s lead over clans below. Bar lengths compare the displayed gaps.</p>
+    </article>
+    <article class="rivalry-card">
+      <h3>What-if reputation calculator</h3>
+      <label class="projection-label" for="projection-gain">Additional reputation for Chaos</label>
+      <input id="projection-gain" type="number" min="0" step="1" value="0" inputmode="numeric">
+      <div class="projection-stats">
+        <div class="projection-stat"><span>Projected reputation</span><b id="projection-rep">—</b></div>
+        <div class="projection-stat"><span>Projected rank</span><b id="projection-rank">—</b></div>
+        <div class="projection-stat"><span>Places gained</span><b id="projection-moves">—</b></div>
+        <div class="projection-stat"><span>More to pass next clan</span><b id="projection-next">—</b><div class="projection-note" id="projection-next-note">—</div></div>
+      </div>
+      <p class="rivalry-foot" id="projection-summary">Enter a reputation gain to estimate Chaos’s new position.</p>
+    </article>
+  </div>
+  <p class="rivalry-foot" id="rivalry-source-note">Rank gaps use the latest saved daily snapshot. The calculator changes only Chaos’s reputation and holds every other clan at its saved total.</p>
 </section>
 <div class="grid">
   <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
@@ -257,6 +319,88 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     });
   }
 
+  function renderProjection(clans, chaos) {
+    const input = $('projection-gain');
+    const gain = Math.max(0, Math.floor(Number(input.value) || 0));
+    const projectedRep = chaos.rep + gain;
+    const projected = clans.map(clan => ({
+      ...clan,
+      projectedRep: clan.name === chaos.name ? projectedRep : clan.rep,
+    })).sort((a,b) => b.projectedRep - a.projectedRep || a.rank - b.rank);
+    const projectedIndex = projected.findIndex(clan => clan.name === chaos.name);
+    const projectedRank = projectedIndex + 1;
+    const placesGained = Math.max(0, chaos.rank - projectedRank);
+    const nextClan = projectedRank > 1 ? projected[projectedRank - 2] : null;
+    const needed = nextClan ? Math.max(0, nextClan.projectedRep - projectedRep + 1) : 0;
+
+    $('projection-rep').textContent = fmt(projectedRep);
+    $('projection-rank').textContent = '#' + fmt(projectedRank);
+    $('projection-moves').textContent = placesGained ? '+' + fmt(placesGained) : 'No change';
+    $('projection-next').textContent = nextClan ? fmt(needed) : 'Top rank';
+    $('projection-next-note').textContent = nextClan ? 'to pass #' + fmt(nextClan.rank) + ' · ' + nextClan.name : 'Chaos would lead the ranking';
+    $('projection-summary').textContent = gain
+      ? 'With +' + fmt(gain) + ' reputation, Chaos would move from #' + fmt(chaos.rank) + ' to #' +
+        fmt(projectedRank) + ', passing ' + fmt(placesGained) + ' clan(s). Other clans remain fixed at their latest saved totals.'
+      : 'At current reputation, Chaos remains #' + fmt(chaos.rank) +
+        '. Increase the value above to test a hypothetical gain; other clans stay fixed.';
+  }
+
+  function renderRivalry() {
+    if (!data || !Array.isArray(data.clans) || !data.clans.length) return;
+    const clans = data.clans.slice().sort((a,b) => a.rank - b.rank);
+    const chaosIndex = clans.findIndex(clan => clan.name.toLowerCase() === 'chaos');
+    const chaos = chaosIndex >= 0 ? clans[chaosIndex] : null;
+    $('rivalry-date').textContent = data.coverage.latest_snapshot_date
+      ? 'Snapshot ' + dateLabel(data.coverage.latest_snapshot_date)
+      : 'Latest snapshot unavailable';
+    if (!chaos) {
+      ['rivalry-rank','rivalry-rep','rivalry-chase','rivalry-chase-note','rivalry-defense',
+       'rivalry-defense-note','rivalry-first','rivalry-first-note'].forEach(id => $(id).textContent = '—');
+      $('rivalry-list').innerHTML = '<div class="empty">Chaos is not present in the latest ranking snapshot.</div>';
+      $('projection-summary').textContent = 'The calculator is unavailable until Chaos appears in the ranking.';
+      return;
+    }
+
+    const above = chaosIndex > 0 ? clans[chaosIndex - 1] : null;
+    const below = chaosIndex < clans.length - 1 ? clans[chaosIndex + 1] : null;
+    const leader = clans[0];
+    const toPass = above ? Math.max(0, above.rep - chaos.rep + 1) : 0;
+    const defense = below ? Math.max(0, chaos.rep - below.rep) : 0;
+    const toFirst = chaosIndex === 0 ? 0 : Math.max(0, leader.rep - chaos.rep + 1);
+    $('rivalry-rank').textContent = '#' + fmt(chaos.rank);
+    $('rivalry-rep').textContent = fmt(chaos.rep) + ' reputation';
+    $('rivalry-chase').textContent = above ? fmt(toPass) : 'Top rank';
+    $('rivalry-chase-note').textContent = above ? 'to pass #' + fmt(above.rank) + ' · ' + above.name : 'Chaos is #1';
+    $('rivalry-defense').textContent = below ? fmt(defense) : '—';
+    $('rivalry-defense-note').textContent = below ? 'ahead of #' + fmt(below.rank) + ' · ' + below.name : 'No lower-ranked clan';
+    $('rivalry-first').textContent = toFirst ? fmt(toFirst) : 'Already #1';
+    $('rivalry-first-note').textContent = toFirst ? 'to overtake ' + leader.name : 'Chaos leads the ranking';
+
+    const rivals = clans.slice(Math.max(0, chaosIndex - 2), Math.min(clans.length, chaosIndex + 3))
+      .filter(clan => clan.name !== chaos.name);
+    const maxGap = Math.max(1, ...rivals.map(clan => Math.abs(clan.rep - chaos.rep)));
+    $('rivalry-list').innerHTML = rivals.length ? rivals.map(clan => {
+      const gap = clan.rep - chaos.rep;
+      const ahead = gap > 0, tied = gap === 0;
+      const cls = tied ? 'tied' : ahead ? 'ahead' : 'behind';
+      const fill = tied ? 'rival-fill-tied' : ahead ? 'rival-fill-ahead' : 'rival-fill-behind';
+      const width = tied ? 2 : Math.max(4, Math.round(Math.abs(gap) / maxGap * 100));
+      const description = tied ? 'Tied on reputation' : ahead
+        ? fmt(gap) + ' ahead of Chaos' : fmt(Math.abs(gap)) + ' behind Chaos · our lead';
+      const amount = tied ? 'Tied' : (ahead ? '+' : '−') + fmt(Math.abs(gap));
+      return '<div class="rival-row"><div class="rival-meta"><div><strong>#' + fmt(clan.rank) +
+        ' · ' + esc(clan.name) + '</strong><small>' + esc(description) +
+        '</small></div><b class="' + cls + '">' + amount + '</b></div>' +
+        '<div class="rival-track" role="img" aria-label="' + esc(description) +
+        '"><div class="rival-fill ' + fill + '" style="width:' + width + '%"></div></div></div>';
+    }).join('') : '<div class="empty">No nearby rival clans are available.</div>';
+
+    $('rivalry-source-note').textContent = 'Based on ' + fmt(clans.length) +
+      ' clans in the ' + (data.coverage.latest_snapshot_date ? dateLabel(data.coverage.latest_snapshot_date) : 'latest') +
+      ' saved ranking. Passing a rival requires at least one more reputation point than its current total.';
+    renderProjection(clans, chaos);
+  }
+
   function render() {
     const coverage = data.coverage || {}, summary = data.summary || {};
     $('clan-count').textContent = fmt(summary.clan_count);
@@ -285,6 +429,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     renderLeaders('top-gainers', gainers, 'rep_gain_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
     renderLeaders('top-risers', risers, 'rank_change_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
     renderProfile();
+    renderRivalry();
 
     const sort = $('sort').value;
     const rows = data.clans.filter(item => (item.name + ' ' + item.master).toLowerCase().includes(query)).slice();
@@ -327,6 +472,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
   }
 
   $('profile-select').addEventListener('change', renderProfile);
+  $('projection-gain').addEventListener('input', () => { if (data) renderRivalry(); });
   $('rows').addEventListener('click', event => {
     const button = event.target.closest('button[data-clan]');
     if (!button || !data) return;
