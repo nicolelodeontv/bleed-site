@@ -21,6 +21,7 @@ const H = {
 };
 const TABLE = `${SUPABASE_URL}/rest/v1/bleed_state`;
 const EVENTS = `${SUPABASE_URL}/rest/v1/bleed_events`;
+const DAILY_CLAN_RANKINGS = `${SUPABASE_URL}/rest/v1/clan_ranking_daily`;
 
 // escape Discord markdown in scraped clan names
 const md = s => String(s).replace(/([\\*_`~|>])/g, '\\$1');
@@ -39,6 +40,60 @@ async function fetchClans() {
   });
   if (!clans.length) throw new Error('No clans parsed');
   return clans;
+}
+
+function manilaDate(timestamp) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(timestamp));
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return values.year + '-' + values.month + '-' + values.day;
+}
+
+// Save the first successful full ranking read for each Manila day.
+// A later poll may add a newly listed clan without rewriting existing daily values.
+async function saveDailyClanSnapshot(clans, capturedAt) {
+  if (!Array.isArray(clans) || !clans.length) return 0;
+  const snapshotDate = manilaDate(capturedAt);
+  const read = await fetch(
+    DAILY_CLAN_RANKINGS + '?snapshot_date=eq.' + snapshotDate + '&select=clan_name&limit=500',
+    { headers: H, signal: sig() }
+  );
+  if (!read.ok) throw new Error('Daily clan snapshot lookup failed: ' + read.status);
+  const existing = new Set((await read.json()).map(row => row.clan_name));
+  const rows = clans.filter(clan => clan && clan.name && !existing.has(clan.name)).map(clan => {
+    const slots = String(clan.members || '').match(/(\d+)\s*\/\s*(\d+)/);
+    return {
+      snapshot_date: snapshotDate,
+      clan_name: String(clan.name),
+      rank_position: Math.max(1, Number(clan.rank) || 1),
+      master_name: String(clan.master || ''),
+      member_count: slots ? Number(slots[1]) : 0,
+      member_capacity: slots ? Number(slots[2]) : 0,
+      reputation: Math.max(0, Number(clan.rep) || 0),
+      captured_at: capturedAt,
+    };
+  });
+  if (!rows.length) return 0;
+  const write = await fetch(DAILY_CLAN_RANKINGS + '?on_conflict=snapshot_date,clan_name', {
+    method: 'POST',
+    headers: { ...H, Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(rows),
+    signal: sig(),
+  });
+  if (!write.ok) throw new Error('Daily clan snapshot insert failed: ' + write.status);
+  return rows.length;
+}
+
+// Also called by the history view to capture today's baseline before the next cron poll.
+export async function ensureDailyClanSnapshot() {
+  const now = Date.now();
+  const state = await getState();
+  const recent = now - Number(state.checked_at || 0) < 90 * 1000;
+  const clans = recent && Array.isArray(state.clans) && state.clans.length
+    ? state.clans : await fetchClans();
+  const saved = await saveDailyClanSnapshot(clans, now);
+  return { snapshot_date: manilaDate(now), saved, clan_count: clans.length };
 }
 
 async function getState() {
@@ -174,6 +229,9 @@ export async function runTick(minAgeMs) {
 
   const next = { ver: Number(prev.ver) + 1, checked_at: now, last_rep: cur, bleeding, clans };
   if (!(await saveState(prev.ver, next))) return getState();   // another check got there first
+
+  try { await saveDailyClanSnapshot(clans, now); }
+  catch (e) { console.error('Daily clan snapshot failed', e); }
 
   await logEvents(stopped, now);
   try {
