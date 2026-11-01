@@ -56,14 +56,15 @@ async function saveDailyClanSnapshot(clans, capturedAt) {
   if (!Array.isArray(clans) || !clans.length) return 0;
   const snapshotDate = manilaDate(capturedAt);
   const rows = clans.filter(clan => clan && clan.name).map(clan => {
-    const slots = String(clan.members || '').match(/(\\d+)\\s*\\/\\s*(\\d+)/);
+    const memberParts = String(clan.members || '').split('/').map(part => Number(part.trim()));
+    const hasMemberCounts = memberParts.length === 2 && memberParts.every(value => Number.isSafeInteger(value) && value >= 0);
     return {
       snapshot_date: snapshotDate,
       clan_name: String(clan.name),
       rank_position: Math.max(1, Number(clan.rank) || 1),
       master_name: String(clan.master || ''),
-      member_count: slots ? Number(slots[1]) : 0,
-      member_capacity: slots ? Number(slots[2]) : 0,
+      member_count: hasMemberCounts ? memberParts[0] : 0,
+      member_capacity: hasMemberCounts ? memberParts[1] : 0,
       reputation: Math.max(0, Number(clan.rep) || 0),
       captured_at: capturedAt,
     };
