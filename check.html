@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bleed Watch check</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--ok:#3ecf8e;--warn:#f5c542;--bad:#ff4d5a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,sans-serif;padding:max(20px,env(safe-area-inset-top)) 16px 60px}
+main{max-width:720px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mute);font-size:13px}
+.sum{margin:18px 0;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);font-weight:600}
+.sum.ok{border-color:#1f5c43}.sum.bad{border-color:#6b2229}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:24px 0 8px}
+.row{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin:6px 0}
+.dot{flex:none;width:10px;height:10px;border-radius:50%;margin-top:7px;background:var(--ok)}
+.warn .dot{background:var(--warn)}.bad .dot{background:var(--bad)}
+.row b{display:block;font-size:14px}
+.row span{color:var(--mute);font-size:13px;word-break:break-word}
+.ms{margin-left:auto;color:var(--mute);font-size:12px;white-space:nowrap}
+button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <h1>Bleed Watch check</h1>
+  <div class="sub" id="when">Running checks…</div>
+  <div class="sum" id="sum">Checking…</div>
+  <button id="again">Run again</button>
+  <h2>Server</h2><div id="server"></div>
+  <h2>This browser</h2><div id="browser"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : Math.round(s / 60) + 'm'; };
+const row = c => '<div class="row ' + (!c.ok ? 'bad' : c.warn ? 'warn' : '') + '"><span class="dot"></span><div><b>' + esc(c.name) + '</b><span>' + esc(c.detail || '') + '</span></div>' + (c.ms != null ? '<span class="ms">' + c.ms + ' ms</span>' : '') + '</div>';
+
+async function timed(fn) {
+  const t = Date.now();
+  try { return { ...(await fn()), ms: Date.now() - t }; }
+  catch (e) { return { ok: false, detail: e.message || String(e), ms: Date.now() - t }; }
+}
+
+async function browserChecks() {
+  const out = [];
+  out.push({ name: 'Ranking data (/api/status)', ...(await timed(async () => {
+    const r = await fetch('/api/status', { cache: 'no-store' });
+    if (!r.ok) return { ok: false, detail: 'HTTP ' + r.status };
+    const d = await r.json();
+    const age = Date.now() - Number(d.checked_at || 0);
+    return { ok: age < 60000, detail: (d.clans || []).length + ' clans, checked ' + ago(age) + ' ago' };
+  })) });
+  out.push({ name: 'Recorded wins (/api/members)', ...(await timed(async () => {
+    const r = await fetch('/api/members', { cache: 'no-store' });
+    if (!r.ok) return { ok: false, detail: 'HTTP ' + r.status };
+    const d = await r.json();
+    if (d.error) return { ok: false, detail: d.error };
+    return { ok: true, detail: (d.gains || []).length + ' wins in the last hour' };
+  })) });
+  const live = await timed(async () => {
+    const r = await fetch('https://ninjazenshin.online/clan-ranking/members/3', { cache: 'no-store' });
+    if (!r.ok) return { ok: false, detail: 'HTTP ' + r.status };
+    const d = await r.json();
+    return { ok: true, detail: (d.members || []).length + ' members, clan rep ' + d.reputation };
+  });
+  if (!live.ok && /fetch|network|cors/i.test(live.detail)) live.detail = 'blocked (CORS) - live attacks will not work in this browser';
+  out.push({ name: 'Browser can read the game site (live attacks)', ...live });
+  const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  out.push({ name: 'Browser notifications', ok: true, warn: perm !== 'granted', detail: perm });
+  return out;
+}
+
+async function run() {
+  $('sum').className = 'sum'; $('sum').textContent = 'Checking…';
+  $('server').innerHTML = ''; $('browser').innerHTML = '';
+  let server = [];
+  try {
+    const r = await fetch('/api/health', { cache: 'no-store' });
+    const d = await r.json();
+    server = d.checks || [];
+    if (!r.ok || d.error) server = [{ name: 'Server health', ok: false, detail: d.error || 'HTTP ' + r.status }];
+  } catch (e) { server = [{ name: 'Server health (/api/health)', ok: false, detail: 'not reachable - is api/health.js deployed?' }]; }
+  $('server').innerHTML = server.map(row).join('');
+  const browser = await browserChecks();
+  $('browser').innerHTML = browser.map(row).join('');
+  const all = server.concat(browser), bad = all.filter(c => !c.ok).length, warn = all.filter(c => c.ok && c.warn).length;
+  $('sum').className = 'sum ' + (bad ? 'bad' : 'ok');
+  $('sum').textContent = bad ? bad + ' problem' + (bad === 1 ? '' : 's') + ' found' : warn ? 'All working, ' + warn + ' note' + (warn === 1 ? '' : 's') : 'Everything is working';
+  $('when').textContent = 'Last run ' + new Date().toLocaleTimeString();
+}
+$('again').onclick = run;
+run();
+setInterval(run, 30000);
+</script>
+</body>
+</html>
