@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Retention · Clan Bleed Watch</title>
+<style>
+:root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e;--blue:#8aa9ff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(255,105,117,.12),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+main{max-width:1240px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(160deg,#2a0d11,#150709);border:1px solid #3a1419}
+h1{margin:0;font-size:23px;letter-spacing:-.02em;line-height:1.2}
+.sub{color:var(--mute);font-size:13px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.nav a,.action{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:12px}
+.nav .highlight{border-color:#51421f;background:#171309;color:var(--gold)}
+.summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:18px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+.stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.stat b{display:block;font-size:25px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.stat small{color:var(--mute);font-size:11px}
+.stat.warn{border-color:#59451c}.stat.warn b{color:var(--gold)}
+.stat.danger{border-color:#52232a}.stat.danger b{color:var(--red)}
+.stat.good b{color:var(--green)}
+.notice{padding:13px 15px;border:1px solid #3b321c;border-radius:12px;background:#151209;color:#d5c18a;font-size:12px;margin:0 0 16px}
+.notice strong{color:#f5d77d}
+.notice.neutral{border-color:var(--line);background:#101015;color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;min-width:0}
+.panel h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:0 0 7px;font-weight:700}
+.panel p{margin:0 0 10px;color:var(--mute);font-size:12px}
+.list{display:grid;gap:7px}
+.list-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#0b0b0f}
+.list-row .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
+.list-row small{display:block;color:var(--mute);font-size:11px;font-weight:400}
+.list-row .value{white-space:nowrap;font-size:12px;color:var(--gold);font-variant-numeric:tabular-nums}
+.empty{padding:20px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:11px;font-size:13px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.panel-head h2{margin:0}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select,input,button{font:inherit;color:var(--text);background:#121218;border:1px solid #292934;border-radius:9px;padding:8px 11px;font-size:13px}
+button{cursor:pointer}button:hover,select:hover{border-color:#545466}
+.export{color:var(--gold);background:#171309;border-color:#51421f}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.status-pill{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:700}
+.status-pill.active{color:var(--green);border-color:#24533d;background:#0c1812}
+.status-pill.cooling{color:var(--gold);border-color:#59451c;background:#171309}
+.status-pill.inactive,.status-pill.long_inactive{color:var(--red);border-color:#52232a;background:#1b0c0f}
+.status-pill.not_yet_active{color:var(--blue);border-color:#2d3f70;background:#0e1320}
+.tag{display:inline-flex;padding:2px 6px;border:1px solid #34523e;border-radius:999px;color:var(--green);font-size:10px;margin-left:5px}
+.drop{color:var(--red);font-weight:700}.steady{color:var(--mute)}.gain{color:var(--gold);font-weight:700}
+.statusline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:1000px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){main{padding:18px 12px 48px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.stat b{font-size:21px}h1{font-size:20px}.panel{padding:12px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><div class="mark">🧭</div><div><h1>Member Retention</h1><div class="sub">Spot activity slowdowns and returning members</div></div></div>
+  <nav class="nav">
+    <a href="/">← Bleed Watch</a>
+    <a href="/activity.html">📈 Member Activity</a>
+    <a href="/compare.html">📊 Compare</a>
+    <a href="/seasons.html">🏆 Seasons</a>
+    <a class="highlight" href="/analytics.html">📉 Season Analytics</a>
+  </nav>
+</header>
+
+<section class="summary" aria-label="Member retention summary">
+  <div class="stat good"><span>Active · under 3 days</span><b id="active-count">—</b><small>Recent recorded gain</small></div>
+  <div class="stat warn"><span>Cooling · 3–6 days</span><b id="cooling-count">—</b><small>Activity may be slowing</small></div>
+  <div class="stat danger"><span>Inactive · 7+ days</span><b id="inactive-count">—</b><small>No recorded gain</small></div>
+  <div class="stat danger"><span>Long inactive · 14+ days</span><b id="long-count">—</b><small>Extended inactivity</small></div>
+  <div class="stat"><span>Returning members</span><b id="returning-count">—</b><small>Active after a 7+ day gap</small></div>
+  <div class="stat"><span>Activity declining</span><b id="declining-count">—</b><small>7-day gain down 50%+</small></div>
+</section>
+
+<div class="notice" id="coverage-note">Loading activity history and tracker coverage…</div>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Returning members</h2>
+    <p>Members with a new active day after at least seven days without a recorded gain.</p>
+    <div id="returning-list" class="list"><div class="empty">Loading…</div></div>
+  </section>
+  <section class="panel">
+    <h2>Activity drop watch</h2>
+    <p>Compares two completed seven-day periods. This stays unavailable until the tracker has 14 days of daily coverage.</p>
+    <div id="declining-list" class="list"><div class="empty">Building the 14-day baseline…</div></div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div><h2>Member status</h2><div class="sub" id="member-count">Loading tracked members…</div></div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search members" autocomplete="off" aria-label="Search members">
+      <select id="status-filter" aria-label="Filter by activity status">
+        <option value="all">All statuses</option>
+        <option value="active">Active</option>
+        <option value="cooling">Cooling</option>
+        <option value="inactive">Inactive · 7–13d</option>
+        <option value="long_inactive">Long inactive · 14d+</option>
+        <option value="not_yet_active">No gain yet this season</option>
+        <option value="returning">Returning</option>
+        <option value="declining">Activity declining</option>
+      </select>
+      <button id="refresh" type="button">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Member</th><th>Status</th><th class="num">Quiet days</th><th>Last recorded gain</th><th class="num">Season gain</th><th>Trend</th></tr></thead>
+    <tbody id="member-rows"><tr><td colspan="7" class="empty">Loading members…</td></tr></tbody>
+  </table></div>
+  <div class="statusline"><span id="status-message" class="sub">Loading retention data…</span><span class="sub">All dates use Asia/Manila time.</span></div>
+</section>
+
+<div class="notice neutral" style="margin-top:14px">
+  <strong>How to read this:</strong> Active means a gain in the last 0–2 calendar days; Cooling is 3–6 days; Inactive is 7–13 days; Long inactive is 14+ days. Members with no gain in a very new season are shown separately until the season has aged enough. Discord digests are sent only at the 7- and 14-day thresholds, with one notification per member per threshold.
+</div>
+</main>
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt=value=>Number(value||0).toLocaleString('en-US');
+  const statusLabels={active:'Active',cooling:'Cooling',inactive:'Inactive · 7–13d',long_inactive:'Long inactive · 14d+',not_yet_active:'No gain yet'};
+  const statusRank={long_inactive:0,inactive:1,cooling:2,not_yet_active:3,active:4};
+  let data=null,busy=false;
+
+  function memberLink(name){return '<a href="/member.html?name='+encodeURIComponent(name)+'">'+esc(name)+'</a>';}
+  function lastGainLabel(member){
+    if(!member.last_gain_day)return 'No recorded gain this season';
+    const d=new Date(member.last_gain_day+'T12:00:00Z');
+    const date=new Intl.DateTimeFormat('en',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}).format(d);
+    return date;
+  }
+  function trendLabel(member){
+    if(!data.trend.available)return '<span class="steady">Building baseline</span>';
+    if(member.activity_drop)return '<span class="drop">↓ '+Math.round(member.drop_percent||0)+'%</span><small class="sub"> vs previous 7 days</small>';
+    if(member.current_7d_gain>member.previous_7d_gain)return '<span class="gain">↑ '+fmt(member.current_7d_gain-member.previous_7d_gain)+' rep</span>';
+    return '<span class="steady">No major drop</span>';
+  }
+  function compactList(rows,emptyText,kind){
+    if(!rows.length)return '<div class="empty">'+esc(emptyText)+'</div>';
+    return rows.slice(0,8).map(member=>'<div class="list-row"><div class="name">'+memberLink(member.member)+'<small>'+
+      (kind==='returning'?'Returned after '+member.returning_after_days+' quiet days':fmt(member.previous_7d_gain)+' → '+fmt(member.current_7d_gain)+' rep in completed weeks')+
+      '</small></div><span class="value">'+(kind==='returning'?'+'+fmt(member.season_gain)+' rep':('↓ '+Math.round(member.drop_percent||0)+'%'))+'</span></div>').join('');
+  }
+  function render(){
+    if(!data)return;
+    const s=data.summary;
+    $('active-count').textContent=fmt(s.active);
+    $('cooling-count').textContent=fmt(s.cooling);
+    $('inactive-count').textContent=fmt(s.inactive);
+    $('long-count').textContent=fmt(s.long_inactive);
+    $('returning-count').textContent=fmt(s.returning);
+    $('declining-count').textContent= data.trend.available?fmt(s.declining):'—';
+    $('returning-list').innerHTML=compactList(data.returning_members,'No returning members detected in the available history.','returning');
+    $('declining-list').innerHTML=data.trend.available
+      ?compactList(data.declining_members,'No members currently meet the activity-drop threshold.','declining')
+      :'<div class="empty">The 14-day baseline is still building. No drop labels or alerts are generated until there is enough daily coverage.</div>';
+
+    const filter=$('status-filter').value,query=$('search').value.trim().toLowerCase();
+    const rows=data.members.filter(m=>(filter==='all'||m.status===filter||(filter==='returning'&&m.returning)||(filter==='declining'&&m.activity_drop))&&m.member.toLowerCase().includes(query))
+      .sort((a,b)=>(statusRank[a.status]??5)-(statusRank[b.status]??5)||b.quiet_days-a.quiet_days||b.season_gain-a.season_gain||a.member.localeCompare(b.member));
+    $('member-count').textContent=rows.length+' of '+data.members.length+' tracked members · Season '+data.season.season_number;
+    $('member-rows').innerHTML=rows.map((m,i)=>{
+      const label=statusLabels[m.status]||m.status;
+      const tags=(m.returning?'<span class="tag">Returning</span>':'')+(m.activity_drop?'<span class="tag" style="color:var(--red);border-color:#52232a">Drop</span>':'');
+      const quiet=m.has_gain?fmt(m.quiet_days):'—';
+      return '<tr><td class="num">'+(i+1)+'</td><td>'+memberLink(m.member)+tags+'</td><td><span class="status-pill '+esc(m.status)+'">'+esc(label)+'</span></td>'+
+        '<td class="num">'+quiet+'</td><td>'+esc(lastGainLabel(m))+'</td><td class="num gain">+'+fmt(m.season_gain)+'</td><td>'+trendLabel(m)+'</td></tr>';
+    }).join('')||'<tr><td colspan="7" class="empty">No members match this filter.</td></tr>';
+    $('status-message').textContent='Updated '+new Intl.DateTimeFormat('en',{timeZone:'Asia/Manila',hour:'numeric',minute:'2-digit'}).format(new Date(data.generated_at))+' · '+data.members.length+' tracked members';
+    const c=data.coverage;
+    $('coverage-note').innerHTML='<strong>Season '+esc(data.season.season_number)+' activity coverage:</strong> '+esc(c.coverage_start||'Waiting for the first daily snapshot')+' to '+esc(c.coverage_end||'—')+' · '+fmt(c.tracked_days)+' tracked calendar days. '+
+      (data.trend.available?'The 14-day comparison is available.':'The activity-drop baseline is still collecting daily snapshots; this is not treated as zero activity.')+
+      ' Members with no recorded gain yet are kept separate from inactivity until the season has aged enough.';
+  }
+
+  async function load(){
+    if(busy)return;busy=true;
+    $('refresh').disabled=true;$('status-message').textContent='Refreshing retention data…';
+    try{
+      const response=await fetch('/api/seasons?view=retention',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+      const body=await response.json();
+      if(!response.ok)throw new Error(body.error||'Retention data is unavailable');
+      data=body;render();
+    }catch(error){$('status-message').textContent=error.message||'Could not load retention data';}
+    finally{busy=false;$('refresh').disabled=false;}
+  }
+  $('refresh').addEventListener('click',load);
+  $('search').addEventListener('input',render);
+  $('status-filter').addEventListener('change',render);
+  load();setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
