@@ -1697,27 +1697,21 @@ export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
   let forecastAlert = null;
   try {
     momentum = await getClanMomentumForecast(seasonNumber, sampleTimestamp);
-    if (momentum.coverage && momentum.coverage.six_hour_pair_ready && momentum.threat) {
-      const threat = momentum.threat;
-      const forecastResponse = await fetch(REST + '/rpc/process_chaos_clan_rivalry_forecast_alert', {
+    if (momentum.status !== 'stale' && momentum.coverage &&
+        momentum.coverage.all_rivals_ready && Array.isArray(momentum.rival_forecasts)) {
+      const forecastResponse = await fetch(REST + '/rpc/process_chaos_clan_rivalry_forecast_alerts', {
         method: 'POST',
         headers: H,
         body: JSON.stringify({
           p_season_number: seasonNumber,
-          p_rival_clan: threat.name,
-          p_eta_minutes: threat.eta_6h_minutes,
-          p_relative_gain_per_hour: threat.relative_gain_per_hour_6h,
-          p_window_hours: 6,
-          p_current_rank: momentum.chaos.rank,
-          p_chaos_rep: momentum.chaos.rep,
-          p_gap: threat.gap,
+          p_forecasts: momentum.rival_forecasts,
           p_snapshot_at: momentum.latest_sample_at,
         }),
         signal: AbortSignal.timeout(TIMEOUT),
       });
       if (!forecastResponse.ok) {
         const detail = (await forecastResponse.text()).slice(0, 300);
-        throw new Error('Clan momentum forecast alert failed: HTTP ' + forecastResponse.status +
+        throw new Error('Multi-rival momentum alert processing failed: HTTP ' + forecastResponse.status +
           (detail ? ' · ' + detail : ''));
       }
       forecastAlert = await forecastResponse.json();
@@ -1815,27 +1809,42 @@ function makeClanRivalryEmbed(alert) {
       value: '**' + threshold.toLocaleString('en-US') + ' rep**',
       inline: true,
     });
-  } else if (alert.event_type === 'momentum_warning') {
+  } else if (alert.event_type === 'momentum_warning' || alert.event_type === 'chase_warning') {
     const eta = Math.max(0, Number(p.eta_minutes || 0));
     const etaLabel = eta < 60 ? eta + ' minute(s)'
       : Math.floor(eta / 60) + 'h ' + (eta % 60) + 'm';
     const threshold = Number(p.threshold_minutes || 360);
     const pace = Number(p.relative_gain_per_hour || 0);
-    color = threshold <= 60 ? 0xff4d5a : 0xffa33e;
-    title = threshold <= 60
-      ? '🚨 A rival could overtake Chaos within an hour'
-      : '⚠️ Rival momentum puts Chaos at risk';
-    description = '**' + safeText(p.rival_clan) + '** is gaining about **' +
-      pace.toLocaleString('en-US', { maximumFractionDigits: 1 }) +
-      ' more reputation per hour** than Chaos. At the observed six-hour pace, the estimated overtake window is **' +
-      etaLabel + '**.';
+    const isChase = alert.event_type === 'chase_warning';
+    color = threshold <= 60 ? 0xff4d5a : isChase ? 0x3ecf8e : 0xffa33e;
+    if (isChase) {
+      title = threshold <= 60
+        ? '🏁 Chaos could gain a rank within an hour'
+        : '🏁 Chaos has a rank-chasing opportunity';
+      description = 'Chaos is gaining about **' +
+        pace.toLocaleString('en-US', { maximumFractionDigits: 1 }) +
+        ' more reputation per hour** than **' + safeText(p.defender_clan) +
+        '**. At the observed six-hour pace, Chaos could overtake this rival in **' + etaLabel + '**.';
+    } else {
+      title = threshold <= 60
+        ? '🚨 A rival could overtake Chaos within an hour'
+        : '⚠️ A rival is closing in on Chaos';
+      description = '**' + safeText(p.challenger_clan) + '** is gaining about **' +
+        pace.toLocaleString('en-US', { maximumFractionDigits: 1 }) +
+        ' more reputation per hour** than Chaos. At the observed six-hour pace, the estimated overtake window is **' +
+        etaLabel + '**.';
+    }
     fields.push({
       name: 'Current gap',
       value: '**' + Number(p.gap || 0).toLocaleString('en-US') + ' rep** · Chaos is #' + rank,
       inline: true,
     }, {
-      name: 'Forecast window',
-      value: 'Based on six hours of observed samples',
+      name: 'Estimated window',
+      value: 'Six-hour observed pace · ~' + etaLabel,
+      inline: true,
+    }, {
+      name: 'Tracked rival',
+      value: safeText(isChase ? p.defender_clan : p.challenger_clan),
       inline: true,
     });
   } else if (alert.event_type === 'lead_recovered') {
@@ -1943,7 +1952,7 @@ export async function dispatchChaosClanRivalryAlerts() {
 
 // ---------- Clan Rival Momentum & Overtake Forecast ----------
 
-function momentumWindow(points, latestAt, hours, freshnessMs) {
+function momentumWindow(points, latestAt, hours) {
   const windowMs = hours * 60 * 60 * 1000;
   const targetAt = latestAt - windowMs;
   const toleranceMs = windowMs * 0.2;
@@ -1962,7 +1971,7 @@ function momentumWindow(points, latestAt, hours, freshnessMs) {
   const samples = points.filter(point =>
     point.sample_at >= baseline.sample_at && point.sample_at <= latestAt
   );
-  const minimumSamples = hours === 1 ? 8 : 32;
+  const minimumSamples = hours === 1 ? 8 : hours === 6 ? 32 : 96;
   if (samples.length < minimumSamples) return null;
   const latest = points[points.length - 1];
   const gain = latest.reputation - baseline.reputation;
@@ -2004,13 +2013,13 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
   }
 
   const now = Number(referenceAt) || Date.now();
-  const since = now - (6.5 * 60 * 60 * 1000);
+  const since = now - (24.5 * 60 * 60 * 1000);
   const params = new URLSearchParams({
     select: 'sample_at,clan_name,rank_position,reputation',
     season_number: 'eq.' + activeSeason,
     sample_at: 'gte.' + Math.floor(since),
     order: 'sample_at.asc,rank_position.asc',
-    limit: '2000',
+    limit: '5000',
   });
   const response = await fetch(REST + '/chaos_clan_rivalry_samples?' + params.toString(), {
     headers: H,
@@ -2028,7 +2037,13 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
       season_number: activeSeason,
       latest_sample_at: null,
       current_clans: [],
-      coverage: { one_hour_ready: false, six_hour_ready: false, six_hour_pair_ready: false },
+      recent_alerts: [],
+      coverage: {
+        one_hour_ready: false,
+        six_hour_ready: false,
+        twenty_four_hour_ready: false,
+        all_rivals_ready: false,
+      },
     };
   }
 
@@ -2045,7 +2060,7 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
     histories.get(name).push({ sample_at: sampleAt, rank, reputation: rep });
   }
   if (!latestAt || !histories.size) {
-    return { status: 'warming', season_number: activeSeason, latest_sample_at: null, current_clans: [] };
+    return { status: 'warming', season_number: activeSeason, latest_sample_at: null, current_clans: [], recent_alerts: [] };
   }
 
   const ageMinutes = Math.max(0, Math.round((now - latestAt) / 60000));
@@ -2057,6 +2072,7 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
     if (latest.sample_at < latestAt - 10 * 60 * 1000) continue;
     const oneHour = stale ? null : momentumWindow(points, latestAt, 1);
     const sixHour = stale ? null : momentumWindow(points, latestAt, 6);
+    const twentyFourHour = stale ? null : momentumWindow(points, latestAt, 24);
     currentClans.push({
       name,
       rank: latest.rank,
@@ -2068,6 +2084,9 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
       rep_gain_6h: sixHour ? sixHour.gain : null,
       rep_per_hour_6h: sixHour ? sixHour.per_hour : null,
       samples_6h: sixHour ? sixHour.sample_count : 0,
+      rep_gain_24h: twentyFourHour ? twentyFourHour.gain : null,
+      rep_per_hour_24h: twentyFourHour ? twentyFourHour.per_hour : null,
+      samples_24h: twentyFourHour ? twentyFourHour.sample_count : 0,
     });
   }
   currentClans.sort((a, b) => a.rank - b.rank);
@@ -2077,70 +2096,131 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
   const threat = chaosIndex >= 0 ? currentClans[chaosIndex + 1] || null : null;
 
   for (const clan of currentClans) {
-    clan.relative_gain_per_hour_1h =
-      Number.isFinite(clan.rep_per_hour_1h) && chaos && Number.isFinite(chaos.rep_per_hour_1h)
-        ? Math.round((clan.rep_per_hour_1h - chaos.rep_per_hour_1h) * 100) / 100 : null;
-    clan.relative_gain_per_hour_6h =
-      Number.isFinite(clan.rep_per_hour_6h) && chaos && Number.isFinite(chaos.rep_per_hour_6h)
-        ? Math.round((clan.rep_per_hour_6h - chaos.rep_per_hour_6h) * 100) / 100 : null;
-    clan.eta_1h_minutes = chaos && clan.rank > chaos.rank ? momentumEta(clan, chaos, '1h') : null;
-    clan.eta_6h_minutes = chaos && clan.rank > chaos.rank ? momentumEta(clan, chaos, '6h') : null;
-    clan.chaos_overtake_1h_minutes = chaos && clan.rank < chaos.rank ? momentumEta(chaos, clan, '1h') : null;
-    clan.chaos_overtake_6h_minutes = chaos && clan.rank < chaos.rank ? momentumEta(chaos, clan, '6h') : null;
+    for (const key of ['1h', '6h', '24h']) {
+      const ownRate = clan['rep_per_hour_' + key];
+      const chaosRate = chaos && chaos['rep_per_hour_' + key];
+      clan['relative_gain_per_hour_' + key] =
+        Number.isFinite(ownRate) && Number.isFinite(chaosRate)
+          ? Math.round((ownRate - chaosRate) * 100) / 100 : null;
+      clan['eta_' + key + '_minutes'] = chaos && clan.rank > chaos.rank
+        ? momentumEta(clan, chaos, key) : null;
+      clan['chaos_overtake_' + key + '_minutes'] = chaos && clan.rank < chaos.rank
+        ? momentumEta(chaos, clan, key) : null;
+    }
   }
 
-  const trackedRanks = new Set(currentClans.map(clan => clan.rank));
-  const coversThroughChaos = !!chaos && Array.from(
-    { length: chaos.rank }, (_, index) => index + 1
-  ).every(rank => trackedRanks.has(rank));
-
-  function projectedRank(hours, rateKey) {
-    if (!chaos || !coversThroughChaos) return null;
-    const relevant = currentClans.filter(clan => clan.rank <= chaos.rank);
-    if (!relevant.length || relevant.some(clan => !Number.isFinite(clan[rateKey]))) return null;
-    const projected = relevant.map(clan => ({
+  const rankSet = new Set(currentClans.map(clan => clan.rank));
+  const completeTopTen = Array.from({ length: 10 }, (_, index) => index + 1)
+    .every(rank => rankSet.has(rank));
+  function projectedLadder(hours, rateKey) {
+    if (!completeTopTen) return null;
+    const relevant = currentClans.filter(clan => clan.rank <= 10);
+    if (relevant.length !== 10 || relevant.some(clan => !Number.isFinite(clan[rateKey]))) return null;
+    return relevant.map(clan => ({
       name: clan.name,
-      rep: clan.rep + clan[rateKey] * hours,
       current_rank: clan.rank,
-    })).sort((a, b) => b.rep - a.rep || a.current_rank - b.current_rank);
-    return projected.findIndex(clan => clan.name.toLowerCase() === 'chaos') + 1;
+      current_rep: clan.rep,
+      projected_rep: Math.round(clan.rep + clan[rateKey] * hours),
+    })).sort((a, b) => b.projected_rep - a.projected_rep || a.current_rank - b.current_rank)
+      .map((clan, index) => ({ ...clan, projected_rank: index + 1 }));
+  }
+
+  const oneHourLadder = projectedLadder(1, 'rep_per_hour_1h');
+  const sixHourLadder = projectedLadder(6, 'rep_per_hour_6h');
+  const twentyFourHourLadder = projectedLadder(24, 'rep_per_hour_24h');
+  const allRivalsReady = !!(chaos && completeTopTen &&
+    currentClans.filter(clan => clan.rank <= 10).every(clan =>
+      Number.isFinite(clan.rep_per_hour_6h)
+    ));
+
+  const rivalForecasts = chaos ? currentClans
+    .filter(clan => clan.name !== chaos.name && clan.rank <= 10)
+    .map(clan => {
+      const defense = clan.rank > chaos.rank;
+      const challenger = defense ? clan : chaos;
+      const defender = defense ? chaos : clan;
+      const relativeRate = defense
+        ? clan.relative_gain_per_hour_6h
+        : Number.isFinite(clan.rep_per_hour_6h) && Number.isFinite(chaos.rep_per_hour_6h)
+          ? Math.round((chaos.rep_per_hour_6h - clan.rep_per_hour_6h) * 100) / 100
+          : null;
+      const eta = defense ? clan.eta_6h_minutes : clan.chaos_overtake_6h_minutes;
+      return {
+        direction: defense ? 'defense' : 'chase',
+        challenger_clan: challenger.name,
+        defender_clan: defender.name,
+        challenger_rep: challenger.rep,
+        defender_rep: defender.rep,
+        challenger_rank: challenger.rank,
+        defender_rank: defender.rank,
+        chaos_rep: chaos.rep,
+        chaos_rank: chaos.rank,
+        gap: Math.abs(chaos.rep - clan.rep),
+        relative_gain_per_hour: relativeRate,
+        eta_minutes: eta,
+      };
+    }) : [];
+
+  let recentAlerts = [];
+  try {
+    const alertParams = new URLSearchParams({
+      select: 'event_type,payload,status,created_at,sent_at',
+      event_type: 'in.(momentum_warning,chase_warning)',
+      created_at: 'gte.' + Math.floor(now - 7 * 86400000),
+      order: 'created_at.desc',
+      limit: '12',
+    });
+    const alertResponse = await fetch(REST + '/chaos_clan_rivalry_alerts?' + alertParams.toString(), {
+      headers: H,
+      signal: AbortSignal.timeout(TIMEOUT),
+    });
+    if (alertResponse.ok) recentAlerts = await alertResponse.json();
+  } catch (alertError) {
+    console.error('Recent clan momentum alerts unavailable:',
+      String(alertError && alertError.message || alertError).slice(0, 250));
   }
 
   const oneHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_1h));
   const sixHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_6h));
+  const twentyFourHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_24h));
   const sixHourPairReady = !!(chaos && threat &&
-    Number.isFinite(chaos.rep_per_hour_6h) &&
-    Number.isFinite(threat.rep_per_hour_6h));
-  const threatEta = sixHourPairReady ? threat.eta_6h_minutes : null;
-  const relativeThreatRate = sixHourPairReady
-    ? threat.relative_gain_per_hour_6h : null;
+    Number.isFinite(chaos.rep_per_hour_6h) && Number.isFinite(threat.rep_per_hour_6h));
 
   return {
-    status: stale ? 'stale' : sixHourPairReady ? 'ready' : 'warming',
+    status: stale ? 'stale' : allRivalsReady ? 'ready' : 'warming',
     season_number: activeSeason,
     latest_sample_at: latestAt,
     sample_age_minutes: ageMinutes,
     current_clans: currentClans,
     chaos,
     above,
-    threat: threat ? {
-      ...threat,
-      gap: Math.max(0, chaos.rep - threat.rep),
-      eta_6h_minutes: threatEta,
-      relative_gain_per_hour_6h: relativeThreatRate,
-    } : null,
+    threat,
+    rival_forecasts: rivalForecasts,
+    recent_alerts: Array.isArray(recentAlerts) ? recentAlerts : [],
     projection: {
-      one_hour_rank: oneHourReady ? projectedRank(1, 'rep_per_hour_1h') : null,
-      six_hour_rank: sixHourReady ? projectedRank(6, 'rep_per_hour_6h') : null,
+      one_hour_rank: oneHourLadder
+        ? oneHourLadder.find(clan => clan.name.toLowerCase() === 'chaos').projected_rank : null,
+      six_hour_rank: sixHourLadder
+        ? sixHourLadder.find(clan => clan.name.toLowerCase() === 'chaos').projected_rank : null,
+      twenty_four_hour_rank: twentyFourHourLadder
+        ? twentyFourHourLadder.find(clan => clan.name.toLowerCase() === 'chaos').projected_rank : null,
+      ladders: {
+        one_hour: oneHourLadder,
+        six_hour: sixHourLadder,
+        twenty_four_hour: twentyFourHourLadder,
+      },
     },
     coverage: {
       one_hour_ready: oneHourReady,
       six_hour_ready: sixHourReady,
       six_hour_pair_ready: sixHourPairReady,
-      projection_ready: coversThroughChaos,
+      twenty_four_hour_ready: twentyFourHourReady,
+      all_rivals_ready: allRivalsReady,
+      projection_ready: !!(oneHourLadder || sixHourLadder || twentyFourHourLadder),
       tracked_clans: currentClans.length,
       required_one_hour_samples: 8,
       required_six_hour_samples: 32,
+      required_twenty_four_hour_samples: 96,
       required_window_coverage: '80% to 120% of target span',
     },
   };
