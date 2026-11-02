@@ -1615,13 +1615,15 @@ export async function dispatchChaosClanHealthAlerts() {
 
 // ---------- Clan Rivalry rank defense alerts ----------
 
-export async function recordChaosClanForecastAccuracy(momentum, seasonNumber = null) {
+export async function recordChaosClanForecastAccuracy(momentum, seasonNumber = null, actualRanking = [], snapshotAt = null) {
   if (!SUPABASE_URL || !KEY || !momentum || !Number.isSafeInteger(Number(seasonNumber)) ||
-      Number(seasonNumber) < 1 || !Number.isFinite(Number(momentum.latest_sample_at))) {
+      Number(seasonNumber) < 1 || !Number.isFinite(Number(momentum.latest_sample_at)) ||
+      Number(momentum.latest_sample_at) <= 0) {
     return { status: 'skipped' };
   }
 
   const forecastAt = Number(momentum.latest_sample_at);
+  const actualAt = Number(snapshotAt) > 0 ? Number(snapshotAt) : forecastAt;
   const horizonByKey = { one_hour: 1, six_hour: 6, twenty_four_hour: 24 };
   const ladders = momentum.projection && momentum.projection.ladders
     ? momentum.projection.ladders : {};
@@ -1641,13 +1643,15 @@ export async function recordChaosClanForecastAccuracy(momentum, seasonNumber = n
     }
   }
 
-  const actuals = (Array.isArray(momentum.current_clans) ? momentum.current_clans : [])
-    .filter(clan => Number(clan.rank) >= 1 && Number(clan.rank) <= 10 &&
-      Number.isFinite(Number(clan.sample_at)))
+  const actualSource = Array.isArray(actualRanking) && actualRanking.length
+    ? actualRanking : (Array.isArray(momentum.current_clans) ? momentum.current_clans : []);
+  const actuals = actualSource
+    .filter(clan => clan && clan.name && Number.isSafeInteger(Number(clan.rank)) &&
+      Number(clan.rank) >= 1 && Number(clan.rank) <= 1000)
     .map(clan => ({
-      clan_name: String(clan.name || ''),
+      clan_name: String(clan.name),
       actual_rank: Number(clan.rank),
-      sample_at: Number(clan.sample_at),
+      sample_at: actualAt,
     }));
 
   const response = await fetch(REST + '/rpc/record_chaos_clan_forecast_accuracy', {
@@ -1655,7 +1659,8 @@ export async function recordChaosClanForecastAccuracy(momentum, seasonNumber = n
     headers: H,
     body: JSON.stringify({
       p_season_number: Number(seasonNumber),
-      p_snapshot_at: forecastAt,
+      p_forecast_at: forecastAt,
+      p_snapshot_at: actualAt,
       p_forecasts: forecasts,
       p_actuals: actuals,
     }),
@@ -1754,7 +1759,7 @@ export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
   try {
     momentum = await getClanMomentumForecast(seasonNumber, sampleTimestamp);
     try {
-      forecastAccuracyCapture = await recordChaosClanForecastAccuracy(momentum, seasonNumber);
+      forecastAccuracyCapture = await recordChaosClanForecastAccuracy(momentum, seasonNumber, ranked, sampleTimestamp);
     } catch (accuracyError) {
       console.error('Clan forecast accuracy capture failed:',
         String(accuracyError && accuracyError.message || accuracyError).slice(0, 350));
