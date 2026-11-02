@@ -85,6 +85,15 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 .momentum-score-legend{display:flex;gap:8px 18px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin:0 0 12px}
 .momentum-score-legend b{color:var(--gold)}
 .momentum-score{color:var(--gold);font-variant-numeric:tabular-nums}
+.forecast-accuracy-panel{margin:14px 0}
+.forecast-accuracy-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.forecast-accuracy-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:12px;min-width:0}
+.forecast-accuracy-stat span{display:block;color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.forecast-accuracy-stat b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.forecast-accuracy-stat small{color:var(--mute);font-size:11px}
+.forecast-clan-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:18px 0 9px}
+.forecast-clan-heading h3{margin:0;font-size:13px}
+
 .momentum-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
 .momentum-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:11px 12px;min-width:0}
 .momentum-stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
@@ -215,6 +224,27 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     <tbody id="momentum-leaderboard-rows"><tr><td colspan="8" class="empty">Waiting for enough real observations across multiple windows.</td></tr></tbody></table>
   </div>
   <p class="momentum-foot">The score is a relative leaderboard, not a measure of total clan strength. Growth is percentile-ranked among the current top ten; consistency rewards similar hourly rates across available windows. Negative growth remains negative and is not treated as progress.</p>
+</section>
+<section class="panel forecast-accuracy-panel" id="forecast-accuracy-panel">
+  <div class="panel-head">
+    <div><h2>Forecast Accuracy Tracker</h2><div class="sub">Projected clan ranks compared with the first real ranking sample at or after each target time</div></div>
+    <span class="sub" id="forecast-accuracy-status">Building evaluation history…</span>
+  </div>
+  <div class="forecast-accuracy-summary">
+    <div class="forecast-accuracy-stat"><span>1-hour exact rank accuracy</span><b id="forecast-1h-exact">—</b><small id="forecast-1h-meta">No evaluated forecasts yet</small></div>
+    <div class="forecast-accuracy-stat"><span>6-hour exact rank accuracy</span><b id="forecast-6h-exact">—</b><small id="forecast-6h-meta">No evaluated forecasts yet</small></div>
+    <div class="forecast-accuracy-stat"><span>24-hour exact rank accuracy</span><b id="forecast-24h-exact">—</b><small id="forecast-24h-meta">No evaluated forecasts yet</small></div>
+  </div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Forecast horizon</th><th class="num">Evaluated</th><th class="num">Exact rank match</th><th class="num">Within 1 place</th><th class="num">Mean rank error</th><th class="num">Avg. evaluation delay</th><th>Confidence</th></tr></thead>
+    <tbody id="forecast-accuracy-rows"><tr><td colspan="7" class="empty">Forecasts will be scored after their target time has passed and a real clan ranking is recorded.</td></tr></tbody></table>
+  </div>
+  <div class="forecast-clan-heading"><h3>Accuracy by clan</h3><span class="sub">Combined evaluated forecasts across all horizons</span></div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Clan</th><th class="num">Evaluated</th><th class="num">Exact match</th><th class="num">Within 1 place</th><th class="num">Mean rank error</th><th class="num">Signed rank error</th></tr></thead>
+    <tbody id="forecast-clan-rows"><tr><td colspan="6" class="empty">Per-clan accuracy will appear after the first forecasts are evaluated.</td></tr></tbody></table>
+  </div>
+  <p class="momentum-foot" id="forecast-accuracy-note">Forecasts are saved every 30 minutes per clan and horizon. A prediction is evaluated against the first actual sample from its target time through the following 15 minutes. Missing observations expire without being counted as correct or incorrect. Positive signed error means actual rank was better than forecast; negative means the forecast was too optimistic.</p>
 </section>
 <div class="grid">
   <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
@@ -514,6 +544,63 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     }).join('');
   }
 
+  function renderForecastAccuracy(accuracy) {
+    const data = accuracy && typeof accuracy === 'object' ? accuracy : {};
+    const horizons = Array.isArray(data.by_horizon) ? data.by_horizon : [];
+    const clans = Array.isArray(data.by_clan) ? data.by_clan : [];
+    const byHour = new Map(horizons.map(row => [Number(row.horizon_hours), row]));
+    const pct = value => value === null || value === undefined || !Number.isFinite(Number(value))
+      ? '—' : Number(value).toFixed(1) + '%';
+    const places = value => value === null || value === undefined || !Number.isFinite(Number(value))
+      ? '—' : Number(value).toFixed(2);
+    const horizonLabel = hours => hours === 1 ? '1 hour' : hours + ' hours';
+    for (const hours of [1, 6, 24]) {
+      const row = byHour.get(hours) || {};
+      $('forecast-' + (hours === 24 ? '24h' : hours + 'h') + '-exact').textContent = pct(row.exact_accuracy_percent);
+      $('forecast-' + (hours === 24 ? '24h' : hours + 'h') + '-meta').textContent =
+        fmt(row.evaluated || 0) + ' evaluated · ' + pct(row.within_one_percent) + ' within 1 place';
+    }
+    const evaluatedTotal = horizons.reduce((sum, row) => sum + Number(row.evaluated || 0), 0);
+    const pendingTotal = horizons.reduce((sum, row) => sum + Number(row.pending || 0), 0);
+    const expiredTotal = horizons.reduce((sum, row) => sum + Number(row.expired || 0), 0);
+    $('forecast-accuracy-status').textContent = evaluatedTotal
+      ? fmt(evaluatedTotal) + ' evaluations · ' + fmt(pendingTotal) + ' pending'
+      : 'Waiting for first target time';
+    $('forecast-accuracy-rows').innerHTML = [1,6,24].map(hours => {
+      const row = byHour.get(hours) || {};
+      const confidence = row.confidence || 'building';
+      const confidenceLabel = confidence === 'high' ? 'High'
+        : confidence === 'medium' ? 'Medium'
+          : confidence === 'early' ? 'Early' : 'Building';
+      const confidenceClass = confidence === 'high' || confidence === 'medium' ? 'up' : 'flat';
+      return '<tr><td>' + horizonLabel(hours) + '</td><td class="num">' + fmt(row.evaluated || 0) +
+        '</td><td class="num">' + pct(row.exact_accuracy_percent) +
+        '</td><td class="num">' + pct(row.within_one_percent) +
+        '</td><td class="num">' + places(row.mean_absolute_rank_error) +
+        '</td><td class="num">' + (row.mean_evaluation_delay_minutes == null ? '—' : places(row.mean_evaluation_delay_minutes) + 'm') +
+        '</td><td><span class="' + confidenceClass + '">' + confidenceLabel + '</span></td></tr>';
+    }).join('');
+    $('forecast-clan-rows').innerHTML = clans.length ? clans.map(row =>
+      '<tr><td><strong>' + esc(row.clan_name) + '</strong></td><td class="num">' + fmt(row.evaluated || 0) +
+      '</td><td class="num">' + pct(row.exact_accuracy_percent) +
+      '</td><td class="num">' + pct(row.within_one_percent) +
+      '</td><td class="num">' + places(row.mean_absolute_rank_error) +
+      '</td><td class="num">' + (row.mean_signed_rank_error == null ? '—' : (Number(row.mean_signed_rank_error) > 0 ? '+' : '') + places(row.mean_signed_rank_error)) +
+      '</td></tr>'
+    ).join('') : '<tr><td colspan="6" class="empty">Per-clan accuracy will appear after the first forecasts are evaluated.</td></tr>';
+    if (!evaluatedTotal) {
+      $('forecast-accuracy-note').textContent =
+        'Forecasts are captured every 30 minutes per clan and horizon. Each is evaluated against the first real sample at or after its target time, within a 15-minute tolerance. ' +
+        fmt(pendingTotal) + ' forecast(s) are waiting; ' + fmt(expiredTotal) +
+        ' expired without a usable sample. No missing outcomes are counted as correct.';
+    } else {
+      $('forecast-accuracy-note').textContent =
+        'Exact rank accuracy counts predictions landing on the actual rank. Within 1 place allows an error of one rank. Mean rank error is the average absolute number of places missed. Positive signed error means actual rank was better than forecast; negative means the forecast was too optimistic. ' +
+        fmt(pendingTotal) + ' pending · ' + fmt(expiredTotal) + ' expired · ' +
+        fmt(Number(data.window_days || 30)) + '-day reporting window.';
+    }
+  }
+
   function renderMomentumLeaderboard(leaderboard) {
     const holder = $('momentum-leaderboard-rows');
     const status = $('momentum-leaderboard-status');
@@ -576,6 +663,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
       $('momentum-ladder-rows').innerHTML = '<tr><td colspan="5" class="empty">Projected ladders need complete, reliable samples for all ten clans.</td></tr>';
       renderMomentumAlertHistory(momentum.recent_alerts || []);
       renderMomentumLeaderboard(momentum.leaderboard || []);
+      renderForecastAccuracy(momentum.forecast_accuracy || {});
       $('momentum-summary').textContent = 'Momentum tracking is ready but has not collected a usable current sample yet.';
       return;
     }
@@ -630,6 +718,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     renderProjectedLadder(projection.ladders || {});
     renderMomentumAlertHistory(momentum.recent_alerts || []);
     renderMomentumLeaderboard(momentum.leaderboard || []);
+    renderForecastAccuracy(momentum.forecast_accuracy || {});
 
     let note = momentum.status === 'stale'
       ? 'The latest sample is stale. Forecasts and warning evaluation are paused until fresh live samples resume.'
