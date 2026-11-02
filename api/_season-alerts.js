@@ -2129,12 +2129,12 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
   const sixHourLadder = projectedLadder(6, 'rep_per_hour_6h');
   const twentyFourHourLadder = projectedLadder(24, 'rep_per_hour_24h');
   const allRivalsReady = !!(chaos && completeTopTen &&
-    currentClans.filter(clan => clan.rank <= 10).every(clan =>
-      Number.isFinite(clan.rep_per_hour_6h)
-    ));
+    currentClans.every(clan => Number.isFinite(clan.rep_per_hour_6h)));
 
+  // Include the top ten plus the sampled two-rank neighborhood around Chaos,
+  // so rank defense still sees nearby challengers if Chaos leaves the top ten.
   const rivalForecasts = chaos ? currentClans
-    .filter(clan => clan.name !== chaos.name && clan.rank <= 10)
+    .filter(clan => clan.name !== chaos.name)
     .map(clan => {
       const defense = clan.rank > chaos.rank;
       const challenger = defense ? clan : chaos;
