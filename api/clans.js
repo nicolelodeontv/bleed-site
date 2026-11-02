@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { ensureDailyClanSnapshot } from './_lib.js';
+import { getClanMomentumForecast } from './_season-alerts.js';
 
 const SRC = 'https://ninjazenshin.online/clan-ranking';
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -104,6 +105,13 @@ async function handleHistory(res) {
   const topGainer = weekly.slice().sort((a, b) => b.rep_gain_7d - a.rep_gain_7d)[0] || null;
   const topRiser = weekly.slice().sort((a, b) => b.rank_change_7d - a.rank_change_7d)[0] || null;
 
+  let momentum = { status: 'unavailable', current_clans: [] };
+  try {
+    momentum = await getClanMomentumForecast();
+  } catch (momentumError) {
+    console.error('Clan momentum forecast unavailable:', momentumError && momentumError.message || momentumError);
+  }
+
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=60');
   return res.status(200).json({
     generated_at: Date.now(),
@@ -125,6 +133,7 @@ async function handleHistory(res) {
         ? 'Daily rankings are captured once per Manila calendar day. Comparisons appear only when the exact baseline date exists.'
         : 'No daily clan ranking snapshots have been captured yet.',
     },
+    momentum,
     summary: {
       clan_count: currentRows.length,
       total_reputation: currentRows.reduce((sum, clan) => sum + clan.rep, 0),
