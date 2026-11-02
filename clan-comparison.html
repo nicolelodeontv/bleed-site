@@ -480,7 +480,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     holder.innerHTML = rows.map(alert => {
       const payload = alert.payload && typeof alert.payload === 'object' ? alert.payload : {};
       const isChase = alert.event_type === 'chase_warning';
-      const rival = isChase ? payload.defender_clan : payload.challenger_clan;
+      const rival = isChase ? payload.defender_clan : (payload.challenger_clan || payload.rival_clan);
       const eta = Number(payload.eta_minutes);
       const etaText = Number.isFinite(eta) ? (eta < 60 ? eta + 'm' : Math.floor(eta / 60) + 'h ' + (eta % 60) + 'm') : '—';
       const when = Number(alert.sent_at || alert.created_at || 0);
