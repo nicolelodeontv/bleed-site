@@ -79,7 +79,19 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 .projection-stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .projection-note{color:var(--mute);font-size:10px;margin-top:4px}
 .rivalry-foot{color:var(--mute);font-size:11px;margin:11px 0 0}
-@media(max-width:900px){.rivalry-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.momentum-panel{margin:14px 0}
+.momentum-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
+.momentum-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:11px 12px;min-width:0}
+.momentum-stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.momentum-stat b{display:block;font-size:20px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.momentum-stat small{display:block;font-size:10px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.momentum-table{margin-top:12px}
+.momentum-foot{color:var(--mute);font-size:11px;margin:10px 0 0}
+.momentum-table td:first-child{color:var(--mute);font-weight:750}
+.momentum-table .pace-positive{color:var(--red);font-weight:750}
+.momentum-table .pace-negative{color:var(--green);font-weight:750}
+.momentum-table .muted-value{color:var(--mute)}
+@media(max-width:900px){.rivalry-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.momentum-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.rivalry-grid{grid-template-columns:1fr}.rivalry-stat b{font-size:19px}}
 
 @media(max-width:1100px){.profile-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr 1fr}}
@@ -154,6 +166,23 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     </article>
   </div>
   <p class="rivalry-foot" id="rivalry-source-note">Rank gaps use the latest saved daily snapshot. The calculator changes only Chaos’s reputation and holds every other clan at its saved total.</p>
+</section>
+<section class="panel momentum-panel" id="momentum-panel">
+  <div class="panel-head">
+    <div><h2>Clan Rival Momentum &amp; Overtake Forecast</h2><div class="sub">Five-minute observed samples · one-hour and six-hour pace · conservative estimates</div></div>
+    <span class="sub" id="momentum-updated">Waiting for samples…</span>
+  </div>
+  <div class="momentum-stats" aria-label="Clan momentum summary">
+    <div class="momentum-stat"><span>Chaos · 1h pace</span><b id="momentum-chaos-1h">—</b><small id="momentum-chaos-1h-note">Building one-hour history</small></div>
+    <div class="momentum-stat"><span>Chaos · 6h pace</span><b id="momentum-chaos-6h">—</b><small id="momentum-chaos-6h-note">Building six-hour history</small></div>
+    <div class="momentum-stat"><span>Projected Chaos rank</span><b id="momentum-projection">—</b><small id="momentum-projection-note">Requires complete rival coverage</small></div>
+    <div class="momentum-stat"><span>Nearest rival overtake ETA</span><b id="momentum-threat-eta">—</b><small id="momentum-threat-note">Based on six-hour relative pace</small></div>
+  </div>
+  <div class="table-wrap momentum-table">
+    <table><thead><tr><th>Rank</th><th>Clan</th><th class="num">Current rep</th><th class="num">1h gain</th><th class="num">6h gain</th><th class="num">Pace vs Chaos / hr</th><th class="num">Estimated overtake</th></tr></thead>
+    <tbody id="momentum-rows"><tr><td colspan="7" class="empty">Five-minute samples are starting. Reliable rates unlock after enough real observations have accumulated.</td></tr></tbody></table>
+  </div>
+  <p class="momentum-foot" id="momentum-summary">No short-term rates or ETA are displayed until each clan has enough observations across the requested window. Estimates assume recent reputation pace continues and are not predictions of guaranteed rank changes.</p>
 </section>
 <div class="grid">
   <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
@@ -401,6 +430,102 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     renderProjection(clans, chaos);
   }
 
+  function renderMomentum() {
+    const momentum = data && data.momentum ? data.momentum : {};
+    const clans = Array.isArray(momentum.current_clans) ? momentum.current_clans.slice().sort((a,b) => a.rank - b.rank) : [];
+    const chaos = momentum.chaos || clans.find(clan => String(clan.name).toLowerCase() === 'chaos') || null;
+    const threat = momentum.threat || null;
+    const projection = momentum.projection || {};
+    const coverage = momentum.coverage || {};
+    const etaLabel = value => {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+      const minutes = Math.max(0, Math.round(Number(value)));
+      if (minutes < 60) return minutes + 'm';
+      const hours = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return hours + 'h' + (rest ? ' ' + rest + 'm' : '');
+    };
+    const rateLabel = value => Number.isFinite(Number(value)) ? signed(Number(value)) + ' rep/hr' : '—';
+    const sampleDate = momentum.latest_sample_at
+      ? new Date(momentum.latest_sample_at).toLocaleTimeString('en-PH', {hour:'numeric',minute:'2-digit'})
+      : null;
+    $('momentum-updated').textContent = sampleDate
+      ? 'Last sample ' + sampleDate + ' · ' + fmt(momentum.sample_age_minutes || 0) + 'm ago'
+      : 'Waiting for first sample';
+
+    if (!chaos || !clans.length) {
+      $('momentum-chaos-1h').textContent = '—';
+      $('momentum-chaos-1h-note').textContent = 'Awaiting live Chaos sample';
+      $('momentum-chaos-6h').textContent = '—';
+      $('momentum-chaos-6h-note').textContent = 'Six-hour baseline is building';
+      $('momentum-projection').textContent = '—';
+      $('momentum-projection-note').textContent = 'Not enough tracked ranking history';
+      $('momentum-threat-eta').textContent = '—';
+      $('momentum-threat-note').textContent = 'No current rival sample';
+      $('momentum-rows').innerHTML = '<tr><td colspan="7" class="empty">The first live sample will appear after the next successful clan poll.</td></tr>';
+      $('momentum-summary').textContent = 'Momentum tracking is ready but has not collected a usable current sample yet.';
+      return;
+    }
+
+    $('momentum-chaos-1h').textContent = rateLabel(chaos.rep_per_hour_1h);
+    $('momentum-chaos-1h-note').textContent = chaos.rep_gain_1h === null || chaos.rep_gain_1h === undefined
+      ? 'Building one-hour history'
+      : signed(chaos.rep_gain_1h) + ' rep observed · ' + fmt(chaos.samples_1h) + ' samples';
+    $('momentum-chaos-6h').textContent = rateLabel(chaos.rep_per_hour_6h);
+    $('momentum-chaos-6h-note').textContent = chaos.rep_gain_6h === null || chaos.rep_gain_6h === undefined
+      ? 'Building six-hour history'
+      : signed(chaos.rep_gain_6h) + ' rep observed · ' + fmt(chaos.samples_6h) + ' samples';
+    const projected1h = projection.one_hour_rank;
+    const projected6h = projection.six_hour_rank;
+    $('momentum-projection').textContent = projected1h && projected6h
+      ? '#' + projected1h + ' / #' + projected6h
+      : projected1h ? '#' + projected1h + ' / —'
+        : projected6h ? '— / #' + projected6h : 'Building';
+    $('momentum-projection-note').textContent = 'Estimated rank · 1h / 6h';
+    $('momentum-threat-eta').textContent = threat && threat.eta_6h_minutes !== null && threat.eta_6h_minutes !== undefined
+      ? '~' + etaLabel(threat.eta_6h_minutes) : 'No ETA';
+    $('momentum-threat-note').textContent = threat
+      ? threat.relative_gain_per_hour_6h > 0
+        ? threat.name + ' · +' + fmt(threat.relative_gain_per_hour_6h) + ' rep/hr vs Chaos'
+        : threat.name + ' is not gaining faster over six hours'
+      : 'No lower-ranked rival in the sample';
+
+    const chaosIndex = clans.findIndex(clan => String(clan.name).toLowerCase() === 'chaos');
+    const rivals = chaosIndex >= 0
+      ? clans.slice(Math.max(0, chaosIndex - 3), Math.min(clans.length, chaosIndex + 4))
+      : clans.slice(0, 7);
+    $('momentum-rows').innerHTML = rivals.length ? rivals.map(clan => {
+      const isChaos = String(clan.name).toLowerCase() === 'chaos';
+      const relative = clan.relative_gain_per_hour_6h;
+      const pace = isChaos ? '<span class="muted-value">—</span>'
+        : Number.isFinite(Number(relative))
+          ? '<span class="' + (relative > 0 ? 'pace-positive' : relative < 0 ? 'pace-negative' : 'muted-value') + '">' + signed(relative) + '</span>'
+          : '<span class="muted-value">Building</span>';
+      let eta = '—';
+      if (!isChaos && clan.rank > chaos.rank) {
+        eta = clan.eta_6h_minutes !== null && clan.eta_6h_minutes !== undefined
+          ? 'Rival in ' + etaLabel(clan.eta_6h_minutes) : 'No ETA';
+      } else if (!isChaos && clan.rank < chaos.rank) {
+        eta = clan.chaos_overtake_6h_minutes !== null && clan.chaos_overtake_6h_minutes !== undefined
+          ? 'Chaos in ' + etaLabel(clan.chaos_overtake_6h_minutes) : 'No ETA';
+      }
+      return '<tr><td>#' + fmt(clan.rank) + '</td><td>' + (isChaos ? '<strong>' + esc(clan.name) + '</strong>' : esc(clan.name)) +
+        '</td><td class="num">' + fmt(clan.rep) + '</td>' +
+        '<td class="num">' + (clan.rep_gain_1h === null || clan.rep_gain_1h === undefined ? '<span class="muted-value">Building</span>' : signed(clan.rep_gain_1h)) + '</td>' +
+        '<td class="num">' + (clan.rep_gain_6h === null || clan.rep_gain_6h === undefined ? '<span class="muted-value">Building</span>' : signed(clan.rep_gain_6h)) + '</td>' +
+        '<td class="num">' + pace + '</td><td class="num">' + esc(eta) + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">No current rivals are available.</td></tr>';
+
+    let note = momentum.status === 'stale'
+      ? 'The latest sample is stale. Forecasts are paused until the live ranking poll resumes.'
+      : coverage.six_hour_pair_ready
+        ? 'Six-hour comparisons are ready. Relative pace is rival gain per hour minus Chaos gain per hour; ETAs assume that rate difference continues.'
+        : coverage.one_hour_ready
+          ? 'The one-hour baseline is ready. The six-hour baseline is still building; overtaking ETAs remain hidden until it is reliable.'
+          : 'Five-minute observations are accumulating. The one-hour comparison appears after at least eight samples and a sufficiently complete time window; six-hour ETAs need a longer baseline.';
+    $('momentum-summary').textContent = note + ' Samples are retained for eight days; old or missing observations are not filled in.';
+  }
+
   function render() {
     const coverage = data.coverage || {}, summary = data.summary || {};
     $('clan-count').textContent = fmt(summary.clan_count);
@@ -430,6 +555,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     renderLeaders('top-risers', risers, 'rank_change_7d', item => 'Current rank #' + item.rank + ' · ' + fmt(item.rep) + ' rep');
     renderProfile();
     renderRivalry();
+    renderMomentum();
 
     const sort = $('sort').value;
     const rows = data.clans.filter(item => (item.name + ' ' + item.master).toLowerCase().includes(query)).slice();
