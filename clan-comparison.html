@@ -81,6 +81,10 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 .rivalry-foot{color:var(--mute);font-size:11px;margin:11px 0 0}
 .momentum-panel{margin:14px 0}
 .momentum-ladder,.momentum-alert-history{margin-top:12px}
+.momentum-leaderboard-panel{margin:14px 0}
+.momentum-score-legend{display:flex;gap:8px 18px;flex-wrap:wrap;color:var(--mute);font-size:11px;margin:0 0 12px}
+.momentum-score-legend b{color:var(--gold)}
+.momentum-score{color:var(--gold);font-variant-numeric:tabular-nums}
 .momentum-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
 .momentum-stat{background:#0b0b0f;border:1px solid var(--line);border-radius:11px;padding:11px 12px;min-width:0}
 .momentum-stat span{display:block;font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
@@ -195,6 +199,22 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     <div class="list" id="momentum-alert-history"><div class="empty">No rival or chase alerts have been recorded yet.</div></div>
   </article>
   <p class="momentum-foot" id="momentum-summary">Missing or stale observations are never filled in. ETAs assume the observed six-hour pace difference continues; they are estimates, not guaranteed ranking changes.</p>
+</section>
+<section class="panel momentum-leaderboard-panel" id="momentum-leaderboard-panel">
+  <div class="panel-head">
+    <div><h2>Clan Momentum Leaderboard</h2><div class="sub">Competitive performance score · growth pace and consistency across measured windows</div></div>
+    <span class="sub" id="momentum-leaderboard-status">Building comparable history…</span>
+  </div>
+  <div class="momentum-score-legend">
+    <span><b>70%</b> measured growth percentile</span>
+    <span><b>30%</b> consistency across available windows</span>
+    <span>Only comparable clans with at least two valid windows receive a score</span>
+  </div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Momentum rank</th><th>Clan</th><th class="num">Score / 100</th><th class="num">Growth</th><th class="num">Consistency</th><th class="num">1h rep/hr</th><th class="num">6h rep/hr</th><th class="num">24h rep/hr</th></tr></thead>
+    <tbody id="momentum-leaderboard-rows"><tr><td colspan="8" class="empty">Waiting for enough real observations across multiple windows.</td></tr></tbody></table>
+  </div>
+  <p class="momentum-foot">The score is a relative leaderboard, not a measure of total clan strength. Growth is percentile-ranked among the current top ten; consistency rewards similar hourly rates across available windows. Negative growth remains negative and is not treated as progress.</p>
 </section>
 <div class="grid">
   <section class="panel"><div class="panel-head"><h2>Biggest reputation gains · 7 days</h2><span class="sub" id="gainer-date">—</span></div><div class="list" id="top-gainers"><div class="empty">A matching snapshot from seven days earlier is required.</div></div></section>
@@ -494,6 +514,31 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     }).join('');
   }
 
+  function renderMomentumLeaderboard(leaderboard) {
+    const holder = $('momentum-leaderboard-rows');
+    const status = $('momentum-leaderboard-status');
+    const rows = Array.isArray(leaderboard) ? leaderboard : [];
+    const ready = rows.filter(row => row.status === 'ready' && Number.isFinite(Number(row.score)));
+    status.textContent = ready.length + ' / ' + rows.length + ' clans scored';
+    if (!ready.length) {
+      holder.innerHTML = '<tr><td colspan="8" class="empty">Scores unlock when a clan has at least two valid measured windows. One-hour and six-hour history are currently required.</td></tr>';
+      return;
+    }
+    holder.innerHTML = rows.map(clan => {
+      const scoreReady = clan.status === 'ready' && Number.isFinite(Number(clan.score));
+      const rate = value => value === null || value === undefined || !Number.isFinite(Number(value))
+        ? '<span class="muted-value">Building</span>' : signed(Number(value));
+      return '<tr><td class="rank">#' + fmt(clan.momentum_rank) + '</td><td><strong>' +
+        esc(clan.name) + '</strong><span class="master">Current clan rank #' + fmt(clan.rank) + '</span></td>' +
+        '<td class="num">' + (scoreReady ? '<strong class="momentum-score">' + Number(clan.score).toFixed(1) + '</strong>' : '<span class="muted-value">Building</span>') + '</td>' +
+        '<td class="num">' + (scoreReady ? fmt(clan.growth_score) : '—') + '</td>' +
+        '<td class="num">' + (scoreReady ? fmt(clan.consistency_score) : '—') + '</td>' +
+        '<td class="num">' + rate(clan.rep_per_hour_1h) + '</td>' +
+        '<td class="num">' + rate(clan.rep_per_hour_6h) + '</td>' +
+        '<td class="num">' + rate(clan.rep_per_hour_24h) + '</td></tr>';
+    }).join('');
+  }
+
   function renderMomentum() {
     const momentum = data && data.momentum ? data.momentum : {};
     const clans = Array.isArray(momentum.current_clans) ? momentum.current_clans.slice().sort((a,b) => a.rank - b.rank) : [];
@@ -530,6 +575,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
       $('momentum-rows').innerHTML = '<tr><td colspan="8" class="empty">The first live sample will appear after the next successful clan poll.</td></tr>';
       $('momentum-ladder-rows').innerHTML = '<tr><td colspan="5" class="empty">Projected ladders need complete, reliable samples for all ten clans.</td></tr>';
       renderMomentumAlertHistory(momentum.recent_alerts || []);
+      renderMomentumLeaderboard(momentum.leaderboard || []);
       $('momentum-summary').textContent = 'Momentum tracking is ready but has not collected a usable current sample yet.';
       return;
     }
@@ -583,6 +629,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 
     renderProjectedLadder(projection.ladders || {});
     renderMomentumAlertHistory(momentum.recent_alerts || []);
+    renderMomentumLeaderboard(momentum.leaderboard || []);
 
     let note = momentum.status === 'stale'
       ? 'The latest sample is stale. Forecasts and warning evaluation are paused until fresh live samples resume.'

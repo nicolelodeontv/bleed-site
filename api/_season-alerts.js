@@ -2161,6 +2161,67 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
       };
     }) : [];
 
+  // Competitive momentum score: percentile-ranked growth (70%) plus
+  // consistency across independent measured windows (30%). Scores are only
+  // issued when at least two real windows are available for a clan.
+  const scoreWindows = [
+    { key: '1h', weight: 0.2 },
+    { key: '6h', weight: 0.5 },
+    { key: '24h', weight: 0.3 },
+  ];
+  const rankedPercentiles = {};
+  for (const window of scoreWindows) {
+    const eligible = currentClans.filter(clan =>
+      clan.rank <= 10 && Number.isFinite(clan['rep_per_hour_' + window.key])
+    ).sort((a, b) => a['rep_per_hour_' + window.key] - b['rep_per_hour_' + window.key]);
+    rankedPercentiles[window.key] = new Map();
+    eligible.forEach((clan, index) => {
+      const percentile = eligible.length <= 1 ? 100 : (index / (eligible.length - 1)) * 100;
+      rankedPercentiles[window.key].set(clan.name, percentile);
+    });
+  }
+  const momentumLeaderboard = currentClans.filter(clan => clan.rank <= 10).map(clan => {
+    const available = scoreWindows.filter(window =>
+      Number.isFinite(clan['rep_per_hour_' + window.key]) &&
+      rankedPercentiles[window.key].has(clan.name)
+    );
+    if (available.length < 2) {
+      return {
+        name: clan.name, rank: clan.rank, reputation: clan.rep,
+        score: null, growth_score: null, consistency_score: null,
+        rep_per_hour_1h: clan.rep_per_hour_1h,
+        rep_per_hour_6h: clan.rep_per_hour_6h,
+        rep_per_hour_24h: clan.rep_per_hour_24h,
+        windows_ready: available.map(window => window.key),
+        status: 'building',
+      };
+    }
+    const totalWeight = available.reduce((sum, window) => sum + window.weight, 0);
+    const growthScore = available.reduce((sum, window) =>
+      sum + rankedPercentiles[window.key].get(clan.name) * window.weight, 0
+    ) / totalWeight;
+    const rates = available.map(window => clan['rep_per_hour_' + window.key]);
+    const mean = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+    const variance = rates.reduce((sum, rate) => sum + Math.pow(rate - mean, 2), 0) / rates.length;
+    const coefficient = Math.sqrt(variance) / Math.max(10, Math.abs(mean));
+    const consistencyScore = Math.max(0, 100 - Math.min(100, coefficient * 100));
+    const score = Math.round((growthScore * 0.7 + consistencyScore * 0.3) * 10) / 10;
+    return {
+      name: clan.name, rank: clan.rank, reputation: clan.rep,
+      score, growth_score: Math.round(growthScore * 10) / 10,
+      consistency_score: Math.round(consistencyScore * 10) / 10,
+      rep_per_hour_1h: clan.rep_per_hour_1h,
+      rep_per_hour_6h: clan.rep_per_hour_6h,
+      rep_per_hour_24h: clan.rep_per_hour_24h,
+      windows_ready: available.map(window => window.key),
+      status: 'ready',
+    };
+  }).sort((a, b) => {
+    if (a.score === null && b.score !== null) return 1;
+    if (b.score === null && a.score !== null) return -1;
+    return (b.score || 0) - (a.score || 0) || a.rank - b.rank;
+  }).map((clan, index) => ({ ...clan, momentum_rank: index + 1 }));
+
   let recentAlerts = [];
   try {
     const alertParams = new URLSearchParams({
@@ -2196,6 +2257,7 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
     above,
     threat,
     rival_forecasts: rivalForecasts,
+    leaderboard: momentumLeaderboard,
     recent_alerts: Array.isArray(recentAlerts) ? recentAlerts : [],
     projection: {
       one_hour_rank: oneHourLadder
