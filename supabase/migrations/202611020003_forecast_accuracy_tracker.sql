@@ -63,6 +63,7 @@ declare
   v_inserted integer := 0;
   v_evaluated integer := 0;
   v_expired integer := 0;
+  v_row_count integer := 0;
   v_now bigint;
 begin
   if p_season_number is null or p_season_number < 1
@@ -157,8 +158,8 @@ begin
     )
     on conflict (season_number, forecast_at, horizon_hours, clan_name) do nothing;
 
-    get diagnostics v_expired = row_count;
-    v_inserted := v_inserted + v_expired;
+    get diagnostics v_row_count = row_count;
+    v_inserted := v_inserted + v_row_count;
   end loop;
 
   -- Keep a bounded 90-day accuracy history; this table is private and compact.
@@ -227,7 +228,7 @@ as $$
         when coalesce(s.evaluated,0) >= 20 then 'medium'
         when coalesce(s.evaluated,0) >= 5 then 'early'
         else 'building' end
-    ) order by h.horizon_hours)
+    ) order by h.horizon_hours) as value
       from horizon_values h
       left join horizon_stats s using (horizon_hours)
   ),
@@ -255,7 +256,7 @@ as $$
         when evaluated >= 20 then 'medium'
         when evaluated >= 5 then 'early'
         else 'building' end
-    ) order by mean_absolute_rank_error nulls last, clan_name), '[]'::jsonb)
+    ) order by mean_absolute_rank_error nulls last, clan_name), '[]'::jsonb) as value
       from clan_stats
   )
   select jsonb_build_object(
