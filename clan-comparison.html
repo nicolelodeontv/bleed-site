@@ -437,15 +437,16 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
     const threat = momentum.threat || null;
     const projection = momentum.projection || {};
     const coverage = momentum.coverage || {};
+    const hasNumber = value => value !== null && value !== undefined && Number.isFinite(Number(value));
     const etaLabel = value => {
-      if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+      if (!hasNumber(value)) return '—';
       const minutes = Math.max(0, Math.round(Number(value)));
       if (minutes < 60) return minutes + 'm';
       const hours = Math.floor(minutes / 60);
       const rest = minutes % 60;
       return hours + 'h' + (rest ? ' ' + rest + 'm' : '');
     };
-    const rateLabel = value => Number.isFinite(Number(value)) ? signed(Number(value)) + ' rep/hr' : '—';
+    const rateLabel = value => hasNumber(value) ? signed(Number(value)) + ' rep/hr' : '—';
     const sampleDate = momentum.latest_sample_at
       ? new Date(momentum.latest_sample_at).toLocaleTimeString('en-PH', {hour:'numeric',minute:'2-digit'})
       : null;
@@ -498,7 +499,7 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
       const isChaos = String(clan.name).toLowerCase() === 'chaos';
       const relative = clan.relative_gain_per_hour_6h;
       const pace = isChaos ? '<span class="muted-value">—</span>'
-        : Number.isFinite(Number(relative))
+        : hasNumber(relative)
           ? '<span class="' + (relative > 0 ? 'pace-positive' : relative < 0 ? 'pace-negative' : 'muted-value') + '">' + signed(relative) + '</span>'
           : '<span class="muted-value">Building</span>';
       let eta = '—';
