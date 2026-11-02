@@ -1615,6 +1615,61 @@ export async function dispatchChaosClanHealthAlerts() {
 
 // ---------- Clan Rivalry rank defense alerts ----------
 
+export async function recordChaosClanForecastAccuracy(momentum, seasonNumber = null) {
+  if (!SUPABASE_URL || !KEY || !momentum || !Number.isSafeInteger(Number(seasonNumber)) ||
+      Number(seasonNumber) < 1 || !Number.isFinite(Number(momentum.latest_sample_at))) {
+    return { status: 'skipped' };
+  }
+
+  const forecastAt = Number(momentum.latest_sample_at);
+  const horizonByKey = { one_hour: 1, six_hour: 6, twenty_four_hour: 24 };
+  const ladders = momentum.projection && momentum.projection.ladders
+    ? momentum.projection.ladders : {};
+  const forecasts = [];
+  if (momentum.status !== 'stale') {
+    for (const [key, horizon] of Object.entries(horizonByKey)) {
+      const ladder = Array.isArray(ladders[key]) ? ladders[key] : [];
+      if (ladder.length !== 10) continue;
+      for (const clan of ladder) {
+        forecasts.push({
+          horizon_hours: horizon,
+          clan_name: String(clan.name || ''),
+          predicted_rank: Number(clan.projected_rank),
+          projected_rep: Number(clan.projected_rep),
+        });
+      }
+    }
+  }
+
+  const actuals = (Array.isArray(momentum.current_clans) ? momentum.current_clans : [])
+    .filter(clan => Number(clan.rank) >= 1 && Number(clan.rank) <= 10 &&
+      Number.isFinite(Number(clan.sample_at)))
+    .map(clan => ({
+      clan_name: String(clan.name || ''),
+      actual_rank: Number(clan.rank),
+      sample_at: Number(clan.sample_at),
+    }));
+
+  const response = await fetch(REST + '/rpc/record_chaos_clan_forecast_accuracy', {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({
+      p_season_number: Number(seasonNumber),
+      p_snapshot_at: forecastAt,
+      p_forecasts: forecasts,
+      p_actuals: actuals,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    throw new Error('Forecast accuracy capture failed: HTTP ' + response.status +
+      (detail ? ' · ' + detail : ''));
+  }
+  const result = await response.json();
+  return result && typeof result === 'object' ? result : { status: 'unknown' };
+}
+
 export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
   if (!SUPABASE_URL || !KEY) return { status: 'not_configured' };
   if (!Array.isArray(clans) || !clans.length) return { status: 'no_snapshot' };
@@ -1695,8 +1750,15 @@ export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
   const processed = await response.json();
   let momentum = null;
   let forecastAlert = null;
+  let forecastAccuracyCapture = null;
   try {
     momentum = await getClanMomentumForecast(seasonNumber, sampleTimestamp);
+    try {
+      forecastAccuracyCapture = await recordChaosClanForecastAccuracy(momentum, seasonNumber);
+    } catch (accuracyError) {
+      console.error('Clan forecast accuracy capture failed:',
+        String(accuracyError && accuracyError.message || accuracyError).slice(0, 350));
+    }
     if (momentum.status !== 'stale' && momentum.coverage &&
         momentum.coverage.all_rivals_ready && Array.isArray(momentum.rival_forecasts)) {
       const forecastResponse = await fetch(REST + '/rpc/process_chaos_clan_rivalry_forecast_alerts', {
@@ -1725,6 +1787,7 @@ export async function queueChaosClanRivalryAlerts(clans, snapshotAt) {
     ...(processed && typeof processed === 'object' ? processed : {}),
     momentum_sample: momentumSample.status,
     momentum_status: momentum ? momentum.status : 'unavailable',
+    forecast_accuracy_capture: forecastAccuracyCapture,
     forecast_alert: forecastAlert,
   };
 }
@@ -2241,6 +2304,30 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
       String(alertError && alertError.message || alertError).slice(0, 250));
   }
 
+  let forecastAccuracy = {
+    season_number: activeSeason,
+    window_days: 30,
+    by_horizon: [],
+    by_clan: [],
+  };
+  try {
+    const accuracyResponse = await fetch(REST + '/rpc/get_chaos_clan_forecast_accuracy', {
+      method: 'POST',
+      headers: H,
+      body: JSON.stringify({ p_season_number: activeSeason, p_days: 30 }),
+      signal: AbortSignal.timeout(TIMEOUT),
+    });
+    if (accuracyResponse.ok) {
+      const accuracyData = await accuracyResponse.json();
+      if (accuracyData && typeof accuracyData === 'object') forecastAccuracy = accuracyData;
+    } else {
+      console.error('Forecast accuracy metrics unavailable: HTTP ' + accuracyResponse.status);
+    }
+  } catch (accuracyError) {
+    console.error('Forecast accuracy metrics read failed:',
+      String(accuracyError && accuracyError.message || accuracyError).slice(0, 250));
+  }
+
   const oneHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_1h));
   const sixHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_6h));
   const twentyFourHourReady = !!(chaos && Number.isFinite(chaos.rep_per_hour_24h));
@@ -2259,6 +2346,7 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
     rival_forecasts: rivalForecasts,
     leaderboard: momentumLeaderboard,
     recent_alerts: Array.isArray(recentAlerts) ? recentAlerts : [],
+    forecast_accuracy: forecastAccuracy,
     projection: {
       one_hour_rank: oneHourLadder
         ? oneHourLadder.find(clan => clan.name.toLowerCase() === 'chaos').projected_rank : null,
