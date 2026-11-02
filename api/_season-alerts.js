@@ -2054,6 +2054,7 @@ export async function getClanMomentumForecast(seasonNumber = null, referenceAt =
   for (const [name, points] of histories) {
     points.sort((a, b) => a.sample_at - b.sample_at);
     const latest = points[points.length - 1];
+    if (latest.sample_at < latestAt - 10 * 60 * 1000) continue;
     const oneHour = stale ? null : momentumWindow(points, latestAt, 1);
     const sixHour = stale ? null : momentumWindow(points, latestAt, 6);
     currentClans.push({
