@@ -165,7 +165,7 @@ begin
   -- Keep a bounded 90-day accuracy history; this table is private and compact.
   delete from public.chaos_clan_forecast_accuracy
    where season_number = p_season_number
-     and forecast_at < v_now - 90 * 86400000;
+     and forecast_at < v_now - (90::bigint * 86400000::bigint);
 
   return jsonb_build_object(
     'status', 'ok',
