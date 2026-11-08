@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Member Retention · Clan Bleed Watch</title>
+<meta name="description" content="Member Retention · Clan Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Member Retention · Clan Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e;--blue:#8aa9ff}
 *{box-sizing:border-box}
@@ -130,10 +139,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <strong>How to read this:</strong> Active means a gain in the last 0–2 calendar days; Cooling is 3–6 days; Inactive is 7–13 days; Long inactive is 14+ days. Members with no gain in a very new season are shown separately until the season has aged enough. Discord digests are sent only at the 7- and 14-day thresholds, with one notification per member per threshold.
 </div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function(){
   const $=id=>document.getElementById(id);
-  const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=value=>Number(value||0).toLocaleString('en-US');
   const statusLabels={active:'Active',cooling:'Cooling',inactive:'Inactive · 7–13d',long_inactive:'Long inactive · 14d+',not_yet_active:'No gain yet'};
   const statusRank={long_inactive:0,inactive:1,cooling:2,not_yet_active:3,active:4};

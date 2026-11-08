@@ -1,4 +1,5 @@
 import { dispatchChaosMilestoneAlert, dispatchChaosPersonalBestAlert, dispatchSeasonRolloverAlert } from './_season-alerts.js';
+import { getCredential, isAuthorized } from './_auth.js';
 
 // api/members.js
 // Shared member feed: one server-side Chaos game read every 5 seconds for all visitors.
@@ -272,8 +273,8 @@ async function readSharedFeed(now) {
 
 export default async function handler(req, res) {
   try {
-    if (req.query.key) {
-      if (req.query.key !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
+    if (getCredential(req)) {
+      if (!isAuthorized(req, CRON_SECRET)) return res.status(401).json({ error: 'unauthorized' });
       const now = Date.now();
       const [otherClaimed, chaosClaimed] = await Promise.all([
         claimOtherPoll(now), claimChaosPoll(now),

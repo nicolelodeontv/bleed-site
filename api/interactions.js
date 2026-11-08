@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isAuthorized } from './_auth.js';
 
 // Discord sends button clicks here. Raw body is needed to verify the signature.
 export const config = { api: { bodyParser: false } };
@@ -28,8 +29,10 @@ function verified(raw, sig, ts) {
 const reply = (res, content) => res.status(200).json({ type: 4, data: { content, flags: 64 } });
 
 export default async function handler(req, res) {
-  // Open this URL in a browser to check the setup (shows lengths and yes/no only, never values)
+  // To check the setup, open this URL with ?key=YOUR_CRON_SECRET (shows lengths and yes/no only,
+  // never values). Without the secret it only reports that the endpoint is up.
   if (req.method === 'GET') {
+    if (!isAuthorized(req)) return res.status(200).json({ ok: true });
     return res.status(200).json({
       ok: true,
       publicKeyLength: PUBLIC_KEY.length,   // should be 64

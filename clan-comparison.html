@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clan Ranking History · Bleed Watch</title>
+<meta name="description" content="Clan Ranking History · Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clan Ranking History · Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 50% -140px,rgba(245,197,66,.11),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
@@ -265,12 +274,12 @@ th{position:sticky;top:0;background:#15151b;color:var(--mute);font-size:10px;tex
 </section>
 <div class="statusline"><span id="status" class="sub">Loading clan history…</span><span class="sub">Captures once per Manila day · Refreshes every 5 minutes</span></div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function () {
   const $ = id => document.getElementById(id);
   const fmt = value => Number(value || 0).toLocaleString('en-US');
   const signed = value => value > 0 ? '+' + fmt(value) : value < 0 ? '−' + fmt(Math.abs(value)) : '0';
-  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const dateLabel = value => value ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(value + 'T12:00:00+08:00')) : '—';
   let data = null, busy = false, query = '';
 

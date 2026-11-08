@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Member Activity · Clan Bleed Watch</title>
+<meta name="description" content="Member Activity · Clan Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Member Activity · Clan Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--accent:#ff4d5a;--gold:#f5c542;--green:#3ecf8e}
 *{box-sizing:border-box}
@@ -116,12 +125,12 @@ td.rank{width:35px;color:var(--mute)}
 
 <div class="status"><span id="status-message" class="sub">Loading activity history…</span><span class="sub">All dates use Asia/Manila time.</span></div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function () {
   const TZ = 'Asia/Manila';
   const $ = id => document.getElementById(id);
   const fmt = n => Number(n || 0).toLocaleString();
-  const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let data = null, range = '24h', selectedMember = '', refreshBusy = false;
 
   function dayKey(date) {

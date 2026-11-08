@@ -1,4 +1,5 @@
 import { runTick } from './_lib.js';
+import { isAuthorized } from './_auth.js';
 import {
   queueChaosWeeklySeasonReport,
   dispatchChaosWeeklySeasonReport,
@@ -12,9 +13,14 @@ import {
   dispatchChaosClanRivalryAlerts,
 } from './_season-alerts.js';
 
-// An external scheduler calls this every minute: /api/tick?key=YOUR_CRON_SECRET
+// An external scheduler calls this every minute with the secret, either as
+// "Authorization: Bearer YOUR_CRON_SECRET" or (older style) /api/tick?key=YOUR_CRON_SECRET.
+// The endpoint stays closed until CRON_SECRET is configured.
 export default async function handler(req, res) {
-  if (process.env.CRON_SECRET && req.query.key !== process.env.CRON_SECRET) {
+  if (!process.env.CRON_SECRET) {
+    return res.status(500).json({ error: 'CRON_SECRET is not configured' });
+  }
+  if (!isAuthorized(req)) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   try {

@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090a0f">
 <title>Season Analytics · Bleed Watch</title>
+<meta name="description" content="Season Analytics · Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Season Analytics · Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#090a0f;--panel:#12141c;--panel2:#171a24;--line:#282c39;--text:#f4f5f7;--muted:#9499a8;--gold:#f5c542;--green:#40c982;--red:#ff6572;--blue:#83aaff}
 *{box-sizing:border-box}
@@ -127,11 +136,11 @@ tbody tr:last-child td{border-bottom:0}
   <div class="actions"><button class="btn" id="export-csv">↓ Export analytics CSV</button></div>
   <div class="note">Coverage note: daily totals begin when durable daily tracking was enabled. Rank movement begins with the first saved daily rank snapshot. Earlier 30-day event history is not treated as complete daily history.</div>
 </div>
+<script src="/common.js"></script>
 <script>
 (function(){
   'use strict';
   const $ = id => document.getElementById(id);
-  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const number = value => Number(value || 0).toLocaleString();
   let current = null;
   let busy = false;

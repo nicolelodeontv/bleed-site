@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090a0f">
 <title>Season Comparison · Bleed Watch</title>
+<meta name="description" content="Season Comparison · Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Season Comparison · Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#090a0f;--panel:#12141c;--panel2:#171a24;--line:#282c39;--text:#f4f5f7;--muted:#9499a8;--gold:#f5c542;--green:#40c982;--red:#ff6572;--blue:#83aaff}
 *{box-sizing:border-box}
@@ -106,12 +115,12 @@ select{min-width:145px}
   </section>
   <div class="actions"><button class="btn" id="export" type="button">↓ Export comparison CSV</button></div>
 </div>
+<script src="/common.js"></script>
 <script>
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
   const number = value => Number(value || 0).toLocaleString();
-  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let data = null, loading = false, selectedA = '', selectedB = '';
 
   function setStatus(message, type) {

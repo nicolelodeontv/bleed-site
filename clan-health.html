@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clan Health · Bleed Watch</title>
+<meta name="description" content="Clan Health · Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clan Health · Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#8b8b98;--red:#ff6975;--gold:#f5c542;--green:#3ecf8e;--blue:#8aa9ff}
 *{box-sizing:border-box}
@@ -140,11 +149,11 @@ input{font:inherit;color:var(--text);background:#121218;border:1px solid #292934
 
 <div class="statusline"><span id="status-message" class="sub">Loading clan health…</span><span class="sub">Refreshes every 60 seconds · Asia/Manila</span></div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function () {
   const $ = id => document.getElementById(id);
   const fmt = value => Number(value || 0).toLocaleString('en-US');
-  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const dateLabel = value => value ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(value + 'T12:00:00+08:00')) : '—';
   let data = null, busy = false, query = '';
 

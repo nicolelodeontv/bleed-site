@@ -4,7 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clan Bleed Watch</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>">
+<meta name="description" content="Clan Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clan Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
+<link rel="icon" href="/icon.svg" type="image/svg+xml"><text y='.9em' font-size='90'>🩸</text></svg>">
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--accent:#ff4d5a;--hot:#4a1a20}
 *{box-sizing:border-box}
@@ -135,6 +144,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   <p class="note">A clan counts as bleeding when its reputation drops between checks, and stops after 5 minutes with no further drops. The server does the checking, so everyone sees the same list and times. Browser alerts need this tab open.</p>
 </main>
 
+<script src="/common.js"></script>
 <script>
 const POLL = 5000, TIMEOUT = 10000;
 let state = { clans: [], bleeding: {}, checked_at: 0, stale: false }, known = null, failed = 0, q = '', showAll = false, timer;
@@ -144,7 +154,6 @@ let muted = store.get('muted') === '1';
 let watch = new Set(JSON.parse(store.get('watch') || '[]'));
 
 const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ago = ms => { const s = Math.max(0, Math.floor(ms / 1000)); if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m < 60 ? m + 'm ' + (s % 60) + 's' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
 const rate = (lost, since, now) => { const m = (now - since) / 60000; return m >= 1 ? ' · ~' + Math.round(lost / m).toLocaleString() + '/min' : ''; };
 
@@ -269,7 +278,6 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   const shownRep = new Set();
   const liveRepAt = new Map(), serverRepAt = new Map();
   let first = true;
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function repToast(g, source) {
     const box = document.getElementById('toasts');
     const member = String(g.member || 'Unknown');
@@ -358,7 +366,6 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   if (!box) return;
   box.innerHTML = '<h2>Chaos attacks</h2><div class="sub" id="atk-count" style="margin:-4px 0 8px"></div><div id="atk" aria-live="polite"></div>';
 
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const age = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : Math.floor(s / 3600) + 'h'; };
 
   const base = {};
@@ -460,7 +467,6 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 </style>
 <script>
 (function () {
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const prev = {}, alerted = new Set();
   const sub = document.getElementById("cm-sub");
   const rows = document.getElementById("cm-rows");

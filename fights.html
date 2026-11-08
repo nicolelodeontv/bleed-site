@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Clan Fights</title>
+<meta name="description" content="Clan Fights - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clan Fights">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#101016;--line:#23232d;--text:#e7e7ee;--muted:#8a8a99;--accent:#ff4d5e;--gold:#f5c451}
 *{box-sizing:border-box}
@@ -38,9 +47,9 @@ h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute
   <div class="list" id="feed" aria-live="polite"></div>
   <p class="note">A rep gain means that member just won a fight. Only a few clans are tracked, checked every few minutes.</p>
 </main>
+<script src="/common.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function ago(ms){const s=Math.max(0,Math.round(ms/1000));return s<60?s+'s ago':s<3600?Math.floor(s/60)+'m ago':Math.floor(s/3600)+'h ago'}
 
 let data = null, loadedAt = 0, failed = false, timer;
