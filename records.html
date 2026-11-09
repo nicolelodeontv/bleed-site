@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Season Records · Clan Bleed Watch</title>
+<meta name="description" content="Season Records · Clan Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Season Records · Clan Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--gold:#f5c542;--green:#3ecf8e}
 *{box-sizing:border-box}
@@ -105,11 +114,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 
 <div class="status"><span id="status" class="sub">Loading records…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function(){
  const $=id=>document.getElementById(id);
  const fmt=value=>Number(value||0).toLocaleString('en-US');
- const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icons={season_gain:'💎',active_days:'⚔️',longest_streak:'🔥',gain_events:'📈',best_day_gain:'☀️',best_week_gain:'📅'};
  function valueLabel(row){
    if(row.key==='active_days'||row.key==='longest_streak')return fmt(row.record_value)+' days';

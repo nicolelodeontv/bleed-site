@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#07070a">
 <title>Live Awards Race · Clan Bleed Watch</title>
+<meta name="description" content="Live Awards Race · Clan Bleed Watch - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Live Awards Race · Clan Bleed Watch">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#24242d;--text:#ececf1;--mute:#92929e;--gold:#f5c542;--green:#3ecf8e;--red:#ff7b84}
 *{box-sizing:border-box}
@@ -105,10 +114,10 @@ h2.section-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;col
 </section>
 <div class="status"><span id="status-message" class="sub">Loading current season data…</span><span class="sub">Asia/Manila · refreshes every 60 seconds</span></div>
 </main>
+<script src="/common.js"></script>
 <script>
 (function () {
   const $ = id => document.getElementById(id);
-  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = value => Number(value || 0).toLocaleString('en-US');
   const fmtDecimal = value => Number(value || 0).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
   const defs = [

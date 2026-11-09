@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bleed Watch check</title>
+<meta name="description" content="Bleed Watch check - live clan bleed tracking, season stats and alerts.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bleed Watch check">
+<meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+
 <style>
 :root{color-scheme:dark;--bg:#07070a;--card:#0f0f13;--line:#1d1d24;--text:#ececf1;--mute:#8b8b98;--ok:#3ecf8e;--warn:#f5c542;--bad:#ff4d5a}
 *{box-sizing:border-box}
@@ -32,9 +41,9 @@ button{font:inherit;color:var(--text);background:var(--card);border:1px solid va
   <h2>Server</h2><div id="server"></div>
   <h2>This browser</h2><div id="browser"></div>
 </main>
+<script src="/common.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : Math.round(s / 60) + 'm'; };
 const row = c => '<div class="row ' + (!c.ok ? 'bad' : c.warn ? 'warn' : '') + '"><span class="dot"></span><div><b>' + esc(c.name) + '</b><span>' + esc(c.detail || '') + '</span></div>' + (c.ms != null ? '<span class="ms">' + c.ms + ' ms</span>' : '') + '</div>';
 

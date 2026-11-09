@@ -1,14 +1,9 @@
 import * as cheerio from 'cheerio';
+import { MIN_PARSE_SHARE, evaluateBleeding } from './_bleed.js';
 
 const SRC = 'https://ninjazenshin.online/clan-ranking';
 const { SUPABASE_URL, DISCORD_WEBHOOK_URL, DISCORD_ROLE_ID, DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, SITE_URL } = process.env;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const STOP_AFTER = 5 * 60e3;        // no rep drop for this long = stopped bleeding
-const STALE = 10 * 60e3;            // if our last check is older than this, don't compare against it
-const RESET_GUARD = 10;             // more simultaneous drops than this = season reset, ignore
-const RESET_SHARE = 0.5;            // ...or more than this share of all clans dropping at once
-const MIN_PARSE_SHARE = 0.5;        // parsed far fewer clans than last time = bad parse, skip the tick
-const ESCALATE_AFTER = 30 * 60e3;   // still bleeding after this long = second ping
 const TIMEOUT = 8000;
 const BOT = DISCORD_BOT_TOKEN && DISCORD_CHANNEL_ID;
 const SITE = SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? 'https://' + process.env.VERCEL_PROJECT_PRODUCTION_URL : '');
@@ -217,24 +212,7 @@ export async function runTick(minAgeMs) {
   }
 
   const now = Date.now();   // taken after the fetch so timestamps match the data
-  const cur = Object.fromEntries(clans.map(c => [c.name, c.rep]));
-  const bleeding = { ...prev.bleeding };
-  const started = [], stopped = [], escalated = [];
-  let grew = false;
-
-  const hasBaseline = Object.keys(prev.last_rep || {}).length && now - prev.checked_at < STALE;
-  if (hasBaseline) {
-    const drops = clans.filter(c => prev.last_rep[c.name] !== undefined && c.rep < prev.last_rep[c.name]);
-    if (drops.length <= RESET_GUARD && drops.length <= clans.length * RESET_SHARE) for (const c of drops) {
-      const lost = prev.last_rep[c.name] - c.rep, b = bleeding[c.name];
-      if (b) { b.lastDrop = now; b.lost += lost; grew = true; }
-      else { bleeding[c.name] = { since: now, lastDrop: now, lost }; started.push({ name: c.name, lost }); }
-    }
-  }
-  for (const [n, b] of Object.entries(bleeding)) {
-    if (!(n in cur) || now - b.lastDrop > STOP_AFTER) { stopped.push({ name: n, ...b }); delete bleeding[n]; }
-    else if (!b.escalated && now - b.since > ESCALATE_AFTER) { b.escalated = true; escalated.push({ name: n, ...b }); }
-  }
+  const { cur, bleeding, started, stopped, escalated, grew } = evaluateBleeding(prev, clans, now);
 
   const next = { ver: Number(prev.ver) + 1, checked_at: now, last_rep: cur, bleeding, clans };
   if (!(await saveState(prev.ver, next))) return getState();   // another check got there first
