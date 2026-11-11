@@ -29,6 +29,14 @@ for (const page of pages) {
     }
   });
 
+  test(`${page}: <head> has no stray visible text`, () => {
+    const head = html.split(/<\/head>/i)[0]
+      .replace(/<(style|script|title)[\s\S]*?<\/\1>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]*>/g, '');
+    assert.equal(head.replace(/\s+/g, '').replace(/^<!doctype.*$/i, ''), '', `${page} has leftover text in <head>: ${head.trim().slice(0, 40)}`);
+  });
+
   test(`${page}: calls only API routes that exist`, () => {
     for (const m of html.matchAll(/fetch\(\s*[`'"]\/?(api\/[a-z-]+)/g)) {
       assert.ok(fs.existsSync(path.join(root, m[1] + '.js')), `${page} calls missing route ${m[1]}`);
