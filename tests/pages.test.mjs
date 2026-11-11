@@ -15,22 +15,22 @@ for (const page of pages) {
   const html = read(page);
 
   test(`${page}: inline scripts parse`, () => {
-    const blocks = [...html.matchAll(/<script(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/g)].map((m) => m[1]);
+    const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     for (const code of blocks) assert.doesNotThrow(() => new vm.Script(code, { filename: page }));
   });
 
   test(`${page}: local links and scripts point at real files`, () => {
     for (const m of html.matchAll(/(?:href|src)="([^"#?]+)(?:[?#][^"]*)?"/g)) {
       const target = m[1];
-      if (/^(https?:|mailto:|data:|tel:|javascript:|\\/\\/)/.test(target)) continue;
-      const clean = target.replace(/^\\//, '');
+      if (/^(https?:|mailto:|data:|tel:|javascript:|\/\/)/.test(target)) continue;
+      const clean = target.replace(/^\//, '');
       if (!clean || clean.startsWith('api/')) continue;
       assert.ok(fs.existsSync(path.join(root, clean)), `${page} references missing file ${target}`);
     }
   });
 
   test(`${page}: calls only API routes that exist`, () => {
-    for (const m of html.matchAll(/fetch\\(\\s*[\`'"]\\/?(api\\/[a-z-]+)/g)) {
+    for (const m of html.matchAll(/fetch\(\s*[`'"]\/?(api\/[a-z-]+)/g)) {
       assert.ok(fs.existsSync(path.join(root, m[1] + '.js')), `${page} calls missing route ${m[1]}`);
     }
   });
@@ -39,7 +39,7 @@ for (const page of pages) {
 test('manifest icons exist and are not both "any maskable"', () => {
   const manifest = JSON.parse(read('manifest.webmanifest'));
   for (const icon of manifest.icons) {
-    assert.ok(fs.existsSync(path.join(root, icon.src.replace(/^\\//, ''))), icon.src);
+    assert.ok(fs.existsSync(path.join(root, icon.src.replace(/^\//, ''))), icon.src);
     assert.notEqual(icon.purpose, 'any maskable');
   }
 });
