@@ -1,7 +1,7 @@
 const GAME_ORIGIN = 'https://ninjazenshin.online';
 
 export function parseClanId(value) {
-  if (typeof value !== 'string' || !/^[1-9]\\d{0,9}$/.test(value)) return null;
+  if (typeof value !== 'string' || !/^[1-9]\d{0,9}$/.test(value)) return null;
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
