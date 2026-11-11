@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveClanMembersLink } from '../api/_clan-links.js';
+import { parseClanId, resolveClanMembersLink } from '../api/_clan-links.js';
 
 test('accepts the supported relative clan member route', () => {
   assert.deepEqual(
@@ -29,4 +29,12 @@ test('rejects invalid ids and non-string values', () => {
   assert.equal(resolveClanMembersLink(''), null);
   assert.equal(resolveClanMembersLink(['3']), null);
   assert.equal(resolveClanMembersLink(null), null);
+});
+
+test('parses only safe positive decimal clan IDs', () => {
+  assert.equal(parseClanId('3'), 3);
+  assert.equal(parseClanId('1234567890'), 1234567890);
+  for (const value of ['', '0', '01', '-3', '1.5', '3abc', '12345678901', '9007199254740992', 3, null, undefined]) {
+    assert.equal(parseClanId(value), null);
+  }
 });
