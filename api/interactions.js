@@ -28,6 +28,14 @@ function verified(raw, sig, ts) {
 
 const reply = (res, content) => res.status(200).json({ type: 4, data: { content, flags: 64 } });
 
+// Discord signs the timestamp too; reject old or far-future ones so a captured request can't be replayed.
+export const MAX_SKEW_SECONDS = 300;
+export function isFreshTimestamp(ts, nowMs = Date.now()) {
+  const seconds = Number(ts);
+  if (!Number.isFinite(seconds) || seconds <= 0) return false;
+  return Math.abs(nowMs / 1000 - seconds) <= MAX_SKEW_SECONDS;
+}
+
 export default async function handler(req, res) {
   // To check the setup, open this URL with ?key=YOUR_CRON_SECRET (shows lengths and yes/no only,
   // never values). Without the secret it only reports that the endpoint is up.
@@ -45,14 +53,22 @@ export default async function handler(req, res) {
   const raw = await readBody(req);
   if (PUBLIC_KEY.length !== 64) return res.status(401).send('public key missing or wrong length: ' + PUBLIC_KEY.length);
   if (!raw.length) return res.status(401).send('empty request body');
-  if (!verified(raw, req.headers['x-signature-ed25519'], req.headers['x-signature-timestamp'])) {
+  const timestamp = req.headers['x-signature-timestamp'];
+  if (!verified(raw, req.headers['x-signature-ed25519'], timestamp)) {
     return res.status(401).send('invalid request signature');
   }
-  const i = JSON.parse(raw.toString('utf8'));
+  if (!isFreshTimestamp(timestamp)) return res.status(401).send('stale request timestamp');
+  let i;
+  try { i = JSON.parse(raw.toString('utf8')); }
+  catch { return res.status(400).send('invalid JSON'); }
 
   if (i.type === 1) return res.status(200).json({ type: 1 });          // Discord's endpoint check
 
   if (i.type === 3 && i.data?.custom_id === 'bleed_toggle') {
+    // Buttons clicked in a DM have no guild member, so there is no role to toggle.
+    if (!i.member || !i.member.user || !Array.isArray(i.member.roles) || !i.guild_id) {
+      return reply(res, 'Bleed alerts can only be changed from inside the server.');
+    }
     const has = i.member.roles.includes(DISCORD_ROLE_ID);
     const r = await fetch(`https://discord.com/api/v10/guilds/${i.guild_id}/members/${i.member.user.id}/roles/${DISCORD_ROLE_ID}`, {
       method: has ? 'DELETE' : 'PUT', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
