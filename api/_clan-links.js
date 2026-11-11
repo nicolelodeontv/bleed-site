@@ -7,7 +7,7 @@ export function resolveClanMembersLink(href) {
     const url = new URL(href, GAME_ORIGIN);
     if (url.origin !== GAME_ORIGIN) return null;
 
-    const match = /^\\/clan-ranking\\/members\\/([1-9]\\d*)\\/?$/.exec(url.pathname);
+    const match = /^\/clan-ranking\/members\/([1-9]\d*)\/?$/.exec(url.pathname);
     if (!match) return null;
 
     const id = Number(match[1]);
