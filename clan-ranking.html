@@ -36,6 +36,7 @@ main{max-width:1320px;margin:0 auto;padding:38px 22px 64px}
 .season-kicker{display:block;color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
 .season-value{font-size:16px;font-weight:800;color:#f2d58e}
 .season-status{padding:4px 7px;border-radius:5px;background:rgba(74,214,154,.11);color:var(--green);font-size:9px;font-weight:800;letter-spacing:.1em}
+.season-status.unavailable{background:rgba(255,104,116,.10);color:var(--red)}
 .overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:22px}
 .metric{position:relative;overflow:hidden;padding:15px 17px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,rgba(24,29,40,.96),rgba(15,18,25,.96));box-shadow:var(--shadow)}
 .metric:after{content:"";position:absolute;top:-35px;right:-30px;width:100px;height:100px;border-radius:50%;background:rgba(216,182,95,.055);filter:blur(3px)}
@@ -334,7 +335,8 @@ main{max-width:1320px;margin:0 auto;padding:38px 22px 64px}
         }
       } else state.season = null;
       $('season-value').textContent = state.season ? 'Season ' + state.season : 'Season unavailable';
-      $('season-status').textContent = 'LIVE';
+      $('season-status').textContent = state.season ? 'LIVE' : 'UNAVAILABLE';
+      $('season-status').classList.toggle('unavailable', !state.season);
       $('updated-at').textContent = state.updated ? 'Updated ' + new Date(state.updated).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Live ranking data';
       setLoadState('Live feed · ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}), false);
       render();
