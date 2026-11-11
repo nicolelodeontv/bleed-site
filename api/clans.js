@@ -147,7 +147,92 @@ async function handleHistory(res) {
   });
 }
 
+
+async function handleMembers(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+
+  const rawId = req.query && typeof req.query.id === 'string' ? req.query.id : '';
+  if (!/^[1-9]\\d{0,9}$/.test(rawId)) {
+    return res.status(400).json({ error: 'a valid clan id is required' });
+  }
+
+  const id = Number(rawId);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'a valid clan id is required' });
+  }
+
+  const rankingResponse = await fetch(SRC, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (bleed-site)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!rankingResponse.ok) throw new Error('Clan ranking source HTTP ' + rankingResponse.status);
+
+  const $ = cheerio.load(await rankingResponse.text());
+  let selected = null;
+  $('table tr').each((_, tr) => {
+    const cells = $(tr).find('td');
+    if (cells.length < 2) return;
+    const link = resolveClanMembersLink(cells.eq(1).find('a').first().attr('href'));
+    if (link && link.id === id) {
+      selected = { id: link.id, href: link.href, name: cells.eq(1).text().trim() };
+    }
+  });
+
+  if (!selected) {
+    return res.status(404).json({ error: 'This clan does not currently expose a member list.' });
+  }
+
+  const rosterResponse = await fetch(selected.href, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (bleed-site)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!rosterResponse.ok) throw new Error('Clan roster source HTTP ' + rosterResponse.status);
+
+  const source = await rosterResponse.json();
+  if (!source || !Array.isArray(source.members)) {
+    throw new Error('Clan roster source returned an invalid payload');
+  }
+
+  const seen = new Set();
+  const members = source.members.map(member => {
+    const name = typeof member?.name === 'string' ? member.name.trim() : '';
+    const level = member?.level == null || member.level === '' ? null : Number(member.level);
+    const rep = member?.rep == null || member.rep === '' ? null : Number(member.rep);
+    return {
+      name,
+      level: Number.isFinite(level) ? level : null,
+      rep: Number.isFinite(rep) ? rep : null,
+    };
+  }).filter(member => {
+    if (!member.name || seen.has(member.name)) return false;
+    seen.add(member.name);
+    return true;
+  }).sort((a, b) => (b.rep || 0) - (a.rep || 0) || a.name.localeCompare(b.name));
+
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+  return res.status(200).json({
+    id: selected.id,
+    name: selected.name || (typeof source.name === 'string' ? source.name : 'Clan'),
+    reputation: source.reputation == null || source.reputation === '' || !Number.isFinite(Number(source.reputation))
+      ? null
+      : Number(source.reputation),
+    members,
+  });
+}
+
 export default async function handler(req, res) {
+  if (req.query && req.query.view === 'members') {
+    try {
+      return await handleMembers(req, res);
+    } catch (error) {
+      console.error('Clan member lookup failed:', error && error.message ? error.message : error);
+      return res.status(502).json({ error: 'The live clan roster could not be loaded. Please try again.' });
+    }
+  }
+
   if (req.query && req.query.view === 'history') {
     try {
       return await handleHistory(res);
