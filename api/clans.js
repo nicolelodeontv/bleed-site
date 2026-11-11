@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { ensureDailyClanSnapshot } from './_lib.js';
 import { getClanMomentumForecast } from './_season-alerts.js';
-import { resolveClanMembersLink } from './_clan-links.js';
+import { parseClanId, resolveClanMembersLink } from './_clan-links.js';
 
 const SRC = 'https://ninjazenshin.online/clan-ranking';
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -154,13 +154,8 @@ async function handleMembers(req, res) {
     return res.status(405).json({ error: 'method not allowed' });
   }
 
-  const rawId = req.query && typeof req.query.id === 'string' ? req.query.id : '';
-  if (!/^[1-9]\\d{0,9}$/.test(rawId)) {
-    return res.status(400).json({ error: 'a valid clan id is required' });
-  }
-
-  const id = Number(rawId);
-  if (!Number.isSafeInteger(id) || id <= 0) {
+  const id = parseClanId(req.query && req.query.id);
+  if (id === null) {
     return res.status(400).json({ error: 'a valid clan id is required' });
   }
 
