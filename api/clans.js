@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { ensureDailyClanSnapshot } from './_lib.js';
 import { getClanMomentumForecast } from './_season-alerts.js';
+import { parseClanId, resolveClanMembersLink } from './_clan-links.js';
 
 const SRC = 'https://ninjazenshin.online/clan-ranking';
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -146,7 +147,102 @@ async function handleHistory(res) {
   });
 }
 
+
+function clanMemberLink($, tr) {
+  const row = $(tr);
+  const nameCell = row.find('td').eq(1);
+  const href = resolveClanMembersLink(nameCell.find('a').first().attr('href'));
+  if (href) return href;
+
+  // The game ranking currently marks clickable rows with data-clan rather
+  // than a normal anchor. Validate the value before constructing its route.
+  const rawId = row.attr('data-clan') ||
+    nameCell.attr('data-clan') ||
+    row.find('[data-clan]').first().attr('data-clan');
+  const id = parseClanId(rawId);
+  return id === null ? null : resolveClanMembersLink('/clan-ranking/members/' + id);
+}
+
+async function handleMembers(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+
+  const id = parseClanId(req.query && req.query.id);
+  if (id === null) {
+    return res.status(400).json({ error: 'a valid clan id is required' });
+  }
+
+  const rankingResponse = await fetch(SRC, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (bleed-site)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!rankingResponse.ok) throw new Error('Clan ranking source HTTP ' + rankingResponse.status);
+
+  const $ = cheerio.load(await rankingResponse.text());
+  let selected = null;
+  $('table tr').each((_, tr) => {
+    const cells = $(tr).find('td');
+    if (cells.length < 2) return;
+    const link = clanMemberLink($, tr);
+    if (link && link.id === id) {
+      selected = { id: link.id, href: link.href, name: cells.eq(1).text().trim() };
+    }
+  });
+
+  if (!selected) {
+    return res.status(404).json({ error: 'This clan does not currently expose a member list.' });
+  }
+
+  const rosterResponse = await fetch(selected.href, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (bleed-site)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!rosterResponse.ok) throw new Error('Clan roster source HTTP ' + rosterResponse.status);
+
+  const source = await rosterResponse.json();
+  if (!source || !Array.isArray(source.members)) {
+    throw new Error('Clan roster source returned an invalid payload');
+  }
+
+  const seen = new Set();
+  const members = source.members.map(member => {
+    const name = typeof member?.name === 'string' ? member.name.trim() : '';
+    const level = member?.level == null || member.level === '' ? null : Number(member.level);
+    const rep = member?.rep == null || member.rep === '' ? null : Number(member.rep);
+    return {
+      name,
+      level: Number.isFinite(level) ? level : null,
+      rep: Number.isFinite(rep) ? rep : null,
+    };
+  }).filter(member => {
+    if (!member.name || seen.has(member.name)) return false;
+    seen.add(member.name);
+    return true;
+  }).sort((a, b) => (b.rep || 0) - (a.rep || 0) || a.name.localeCompare(b.name));
+
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+  return res.status(200).json({
+    id: selected.id,
+    name: selected.name || (typeof source.name === 'string' ? source.name : 'Clan'),
+    reputation: source.reputation == null || source.reputation === '' || !Number.isFinite(Number(source.reputation))
+      ? null
+      : Number(source.reputation),
+    members,
+  });
+}
+
 export default async function handler(req, res) {
+  if (req.query && req.query.view === 'members') {
+    try {
+      return await handleMembers(req, res);
+    } catch (error) {
+      console.error('Clan member lookup failed:', error && error.message ? error.message : error);
+      return res.status(502).json({ error: 'The live clan roster could not be loaded. Please try again.' });
+    }
+  }
+
   if (req.query && req.query.view === 'history') {
     try {
       return await handleHistory(res);
@@ -167,7 +263,16 @@ export default async function handler(req, res) {
       if (td.length < 5) return;
       const rep = parseInt(td[4].replace(/,/g, ''), 10);
       if (Number.isNaN(rep)) return;
-      clans.push({ rank: parseInt(td[0], 10), name: td[1], master: td[2], members: td[3], rep });
+      const nameCell = $(tr).find('td').eq(1);
+      const memberLink = clanMemberLink($, tr);
+      clans.push({
+        id: memberLink ? memberLink.id : null,
+        rank: parseInt(td[0], 10),
+        name: td[1],
+        master: td[2],
+        members: td[3],
+        rep,
+      });
     });
     if (!clans.length) throw new Error('No clans parsed - table selector may need adjusting');
 
