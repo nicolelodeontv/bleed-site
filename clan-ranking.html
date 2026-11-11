@@ -313,19 +313,21 @@ main{max-width:1320px;margin:0 auto;padding:38px 22px 64px}
     $('refresh').textContent = 'Loading…';
     setLoadState('Fetching live ranking', false);
     try {
-      const responses = await Promise.all([
+      const responses = await Promise.allSettled([
         fetch('/api/clans', {cache:'no-store', signal:AbortSignal.timeout(10000)}),
         fetch('/api/seasons', {cache:'no-store', signal:AbortSignal.timeout(10000)})
       ]);
-      const ranking = await responses[0].json();
-      if (!responses[0].ok) throw new Error(ranking.error || 'Clan ranking request failed (' + responses[0].status + ')');
+      if (responses[0].status !== 'fulfilled') throw new Error('Clan ranking could not be reached. Please retry.');
+      const rankingResponse = responses[0].value;
+      const ranking = await rankingResponse.json();
+      if (!rankingResponse.ok) throw new Error(ranking.error || 'Clan ranking request failed (' + rankingResponse.status + ')');
       if (!ranking || !Array.isArray(ranking.clans)) throw new Error('The clan ranking response has an invalid format.');
       state.clans = ranking.clans.filter(clan => clan && typeof clan.name === 'string')
         .slice().sort((a,b) => safeNumber(a.rank) - safeNumber(b.rank)).slice(0,100);
       state.updated = safeNumber(ranking.updated);
-      if (responses[1].ok) {
+      if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
         try {
-          const seasonData = await responses[1].json();
+          const seasonData = await responses[1].value.json();
           state.season = safeNumber(seasonData.active_season_number) || null;
         } catch {
           state.season = null;
