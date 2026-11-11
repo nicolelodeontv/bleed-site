@@ -378,7 +378,7 @@ main{max-width:1320px;margin:0 auto;padding:38px 22px 64px}
     if (!Number.isSafeInteger(Number(clan.id)) || Number(clan.id) <= 0) return;
     const stateNode = $('roster-state');
     try {
-      const response = await fetch('/api/clan-members?id=' + encodeURIComponent(clan.id), {
+      const response = await fetch('/api/clans?view=members&id=' + encodeURIComponent(clan.id), {
         cache:'no-store', signal:AbortSignal.timeout(10000)
       });
       const body = await response.json();
