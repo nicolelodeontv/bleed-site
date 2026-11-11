@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   const rawId = req.query && typeof req.query.id === 'string' ? req.query.id : '';
-  if (!/^[1-9]\\d{0,9}$/.test(rawId)) {
+  if (!/^[1-9]\d{0,9}$/.test(rawId)) {
     return res.status(400).json({ error: 'a valid clan id is required' });
   }
 
