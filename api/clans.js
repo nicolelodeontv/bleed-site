@@ -148,6 +148,21 @@ async function handleHistory(res) {
 }
 
 
+function clanMemberLink($, tr) {
+  const row = $(tr);
+  const nameCell = row.find('td').eq(1);
+  const href = resolveClanMembersLink(nameCell.find('a').first().attr('href'));
+  if (href) return href;
+
+  // The game ranking currently marks clickable rows with data-clan rather
+  // than a normal anchor. Validate the value before constructing its route.
+  const rawId = row.attr('data-clan') ||
+    nameCell.attr('data-clan') ||
+    row.find('[data-clan]').first().attr('data-clan');
+  const id = parseClanId(rawId);
+  return id === null ? null : resolveClanMembersLink('/clan-ranking/members/' + id);
+}
+
 async function handleMembers(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -170,7 +185,7 @@ async function handleMembers(req, res) {
   $('table tr').each((_, tr) => {
     const cells = $(tr).find('td');
     if (cells.length < 2) return;
-    const link = resolveClanMembersLink(cells.eq(1).find('a').first().attr('href'));
+    const link = clanMemberLink($, tr);
     if (link && link.id === id) {
       selected = { id: link.id, href: link.href, name: cells.eq(1).text().trim() };
     }
@@ -249,7 +264,7 @@ export default async function handler(req, res) {
       const rep = parseInt(td[4].replace(/,/g, ''), 10);
       if (Number.isNaN(rep)) return;
       const nameCell = $(tr).find('td').eq(1);
-      const memberLink = resolveClanMembersLink(nameCell.find('a').first().attr('href'));
+      const memberLink = clanMemberLink($, tr);
       clans.push({
         id: memberLink ? memberLink.id : null,
         rank: parseInt(td[0], 10),
