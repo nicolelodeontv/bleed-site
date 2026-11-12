@@ -43,3 +43,15 @@ test('manifest icons exist and are not both "any maskable"', () => {
     assert.notEqual(icon.purpose, 'any maskable');
   }
 });
+
+for (const page of pages) {
+  test(`${page}: no stray text between </head> and the first element of <head>`, () => {
+    const head = (read(page).match(/<head[^>]*>([\s\S]*?)<\/head>/) || [])[1] || '';
+    // Strip every well-formed tag and style/script body; any visible text left over renders on the page.
+    const leftover = head
+      .replace(/<(style|script|title)\b[\s\S]*?<\/\1>/g, '')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+    assert.equal(leftover, '', `${page} <head> contains stray text: ${leftover.slice(0, 40)}`);
+  });
+}
