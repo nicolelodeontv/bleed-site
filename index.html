@@ -251,7 +251,7 @@ document.addEventListener('visibilitychange', () => {
 async function history() {
   try {
     const r = await fetch('/api/history', { signal: AbortSignal.timeout(TIMEOUT) });
-    if (!r.ok) return;
+    if (!r.ok) { $('#hist').innerHTML = '<div class="empty">Finished-bleed history is unavailable right now.</div>'; return; }
     const { events } = await r.json();
     $('#hist').innerHTML = events.length
       ? '<div class="wrap" style="max-height:260px"><table><tbody>' + events.map(e =>
@@ -282,7 +282,8 @@ $('#rows').onclick = e => {
 
 // extras: aria-live on the bleeding list, history section above the footnote
 $('#list').setAttribute('aria-live', 'polite');
-$('.note').insertAdjacentHTML('beforebegin', '<h2>Last 24 hours</h2><div id="hist"></div>');
+// Target the footer paragraph; the first .note on the page belongs to the Chaos members table.
+$('p.note').insertAdjacentHTML('beforebegin', '<h2>Finished bleeds · last 24 hours</h2><div id="hist"></div>');
 $('.note').textContent += ' Tap ☆ to watch specific clans: with any watched, alerts only fire for those.';
 syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 300000);
 </script>
