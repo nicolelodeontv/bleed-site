@@ -108,8 +108,21 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
     <button id="sound">🔈 Sound off</button>
   </div>
 
-  <h2 id="head">Bleeding now</h2>
-  <div id="list"></div>
+  <section id="chaos-hourly">
+    <h2>Chaos hourly gains</h2>
+    <div class="sub" id="ch-sub" style="margin:-4px 0 8px">Loading hourly gains…</div>
+    <div class="cm-tools" id="ch-range" role="group" aria-label="Time range">
+      <button type="button" class="cm-filter" data-h="12">12h</button>
+      <button type="button" class="cm-filter active" data-h="24">24h</button>
+      <button type="button" class="cm-filter" data-h="48">48h</button>
+    </div>
+    <div class="ch-chart" id="ch-chart" role="img" aria-label="Chaos rep gained per hour"></div>
+    <div class="ch-top" id="ch-top"></div>
+    <div class="wrap"><table>
+      <thead id="ch-head"></thead>
+      <tbody id="ch-rows"></tbody>
+    </table></div>
+  </section>
 
   <aside id="fights">
     <h2>Chaos attacks</h2>
@@ -132,7 +145,11 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
   </table></div>
   <div class="note cm-history-note">Gain totals are calculated from saved events. Weekly and monthly totals will build as more history is retained.</div>
 </section>
-<h2>Clan ranking</h2>
+  <h2 id="head">Bleeding now</h2>
+  <div id="list"></div>
+
+<details id="clan-ranking-box">
+  <summary>Clan ranking · all clans</summary>
   <div class="tools">
     <input id="q" type="search" placeholder="Search clans" autocomplete="off">
     <button id="all" class="toggle">Show all clans</button>
@@ -141,6 +158,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
     <thead><tr><th>#</th><th>Clan</th><th class="hm">Master</th><th class="hm">Members</th><th class="n">Reputation</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
+</details>
   <p class="note">A clan counts as bleeding when its reputation drops between checks, and stops after 5 minutes with no further drops. The server does the checking, so everyone sees the same list and times. Browser alerts need this tab open.</p>
 </main>
 
@@ -457,6 +475,19 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
 <style>
 .cm-wrap{max-height:420px}
 #cm-sub.sync-stale{color:var(--accent)}
+.ch-chart{display:flex;align-items:stretch;gap:3px;height:140px;padding:10px 8px 6px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.chb{flex:1;min-width:0;display:grid;grid-template-rows:1fr 16px}
+.chb .bw{display:flex;align-items:flex-end}
+.chb i{display:block;width:100%;min-height:2px;border-radius:4px 4px 0 0;background:var(--accent)}
+.chb.zero i{background:var(--line)}.chb.now i{box-shadow:0 0 0 1px var(--text)}
+.chb span{font-size:10px;color:var(--mute);text-align:center;white-space:nowrap;overflow:visible}
+.ch-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:10px 0}
+.ch-top .card{display:block;margin:0}.ch-top ol{margin:6px 0 0;padding:0;list-style:none}
+.ch-top li{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}
+.ch-top li b{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis}.ch-top li em{font-style:normal;color:#ffc857;font-variant-numeric:tabular-nums}
+#chaos-hourly td.z{color:var(--mute)}#chaos-hourly td:first-child,#chaos-hourly th:first-child{position:sticky;left:0;background:#14141a;z-index:1}
+#clan-ranking-box{margin-top:26px}#clan-ranking-box>summary{cursor:pointer;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:600;margin:0 0 10px}
+
 .cm-history-note{margin-top:8px}
 .cm-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
 .cm-tools .sub{margin-left:auto}
@@ -586,5 +617,70 @@ syncButtons(); poll(); history(); setInterval(tick, 1000); setInterval(history, 
   window.addEventListener("chaos-rep-gain", event => showWatchedAlert(event.detail || {}));
   syncWatchControls();
 })();</script>
+<script>
+(() => {
+  const TZ = 'Asia/Manila', HOUR = 3600e3;
+  const fmtHour = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: true });
+  const label = ms => fmtHour.format(new Date(ms)).replace(' ', '').replace('AM', 'a').replace('PM', 'p');
+  const long = ms => fmtHour.format(new Date(ms));
+  const el = id => document.getElementById(id), n = v => Number(v || 0).toLocaleString();
+  let hours = 24, data = null, failed = false, seq = 0;
+
+  async function load() {
+    if (document.hidden) return;
+    const mine = ++seq;
+    try {
+      const r = await fetch('/api/chaos-hourly?hours=' + hours, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (!Array.isArray(d.starts) || !Array.isArray(d.members)) throw new Error('bad payload');
+      if (mine === seq) { data = d; failed = false; }
+    } catch { if (mine === seq) failed = true; }
+    render();
+  }
+
+  function topList(title, idx) {
+    const rows = data.members.map(m => ({ name: m.name, gain: m.hours[idx] || 0 })).filter(r => r.gain > 0)
+      .sort((a, b) => b.gain - a.gain).slice(0, 5);
+    return '<div class="card"><b>' + esc(title) + '</b>' + (rows.length
+      ? '<ol>' + rows.map(r => '<li><b>' + esc(r.name) + '</b><em>+' + n(r.gain) + '</em></li>').join('') + '</ol>'
+      : '<div class="sub" style="margin-top:6px">No gains yet</div>') + '</div>';
+  }
+
+  function render() {
+    const sub = el('ch-sub');
+    if (!data) { sub.textContent = failed ? 'Hourly gains are unavailable right now. Retrying…' : 'Loading hourly gains…'; return; }
+    const len = data.starts.length, max = Math.max(1, ...data.totals), step = len <= 12 ? 1 : len <= 24 ? 3 : 6;
+    sub.textContent = 'Last ' + len + ' hours · ' + n(data.total) + ' rep gained · ' + data.members.length +
+      ' member' + (data.members.length === 1 ? '' : 's') + ' · hours in Philippine time' + (failed ? ' · showing last saved data' : '');
+    el('ch-chart').innerHTML = data.starts.map((s, i) => {
+      const t = data.totals[i], isNow = i === len - 1, show = (len - 1 - i) % step === 0;
+      return '<div class="chb' + (t ? '' : ' zero') + (isNow ? ' now' : '') + '" title="' + esc(long(s) + ': +' + n(t)) + '">' +
+        '<div class="bw"><i style="height:' + (t ? Math.max(3, Math.round(t / max * 100)) : 0) + '%"></i></div><span>' + (show ? label(s) : '') + '</span></div>';
+    }).join('');
+    el('ch-chart').setAttribute('aria-label', 'Chaos rep gained per hour. ' + n(data.total) + ' total in the last ' + len + ' hours.');
+    el('ch-top').innerHTML = topList('This hour (' + long(data.starts[len - 1]) + ')', len - 1) +
+      (len > 1 ? topList('Last hour (' + long(data.starts[len - 2]) + ')', len - 2) : '');
+    const cols = Math.min(12, len), from = len - cols;
+    // Newest hour first, with the range total next to the name, so the key numbers need no sideways scroll.
+    el('ch-head').innerHTML = '<tr><th>Member</th><th class="n">Last ' + len + 'h</th>' +
+      data.starts.slice(from).reverse().map(s => '<th class="n">' + esc(label(s)) + '</th>').join('') + '</tr>';
+    el('ch-rows').innerHTML = data.members.length ? data.members.map(m =>
+      '<tr><td>' + esc(m.name) + '</td><td class="n"><b>+' + n(m.total) + '</b></td>' +
+      m.hours.slice(from).reverse().map(g => g ? '<td class="n">+' + n(g) + '</td>' : '<td class="n z">–</td>').join('') + '</tr>').join('')
+      : '<tr><td colspan="' + (cols + 2) + '" class="z">No Chaos gains recorded in this window.</td></tr>';
+  }
+
+  el('ch-range').addEventListener('click', e => {
+    const b = e.target.closest('button[data-h]'); if (!b) return;
+    hours = Number(b.dataset.h); data = null; failed = false;
+    el('ch-range').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    render(); load();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  setInterval(load, 60000);
+  load();
+})();
+</script>
 </body>
 </html>
