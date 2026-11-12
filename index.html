@@ -147,7 +147,7 @@ tr.b td{background:rgba(255,77,90,.08)}tr.b td:first-child{box-shadow:inset 3px 
 <script src="/common.js"></script>
 <script>
 const POLL = 5000, TIMEOUT = 10000;
-let state = { clans: [], bleeding: {}, checked_at: 0, stale: false }, known = null, failed = 0, q = '', showAll = false, timer;
+let state = { clans: [], bleeding: {}, checked_at: 0, stale: false }, known = null, failed = 0, q = '', showAll = false, timer, refreshing = false;
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let sound = store.get('sound') === '1';
 let muted = store.get('muted') === '1';
@@ -171,9 +171,11 @@ function alertStart(name, lost) {
 }
 
 function setStatus(now) {
-  const old = state.checked_at && now - state.checked_at > 60000, bad = failed || state.stale || old, s = $('#status');
+  const old = state.checked_at && now - state.checked_at > 60000, s = $('#status');
+  // Right after returning to the tab the old timestamp looks stale until the fresh poll lands.
+  const updating = refreshing && !failed, bad = !updating && (failed || state.stale || old);
   s.className = 'pill' + (bad ? ' err' : '');
-  s.innerHTML = '<span class="dot"></span>' + (failed ? 'Connection problem, retrying…' : bad ? 'Data may be stale' : 'Live · refreshes every 5s');
+  s.innerHTML = '<span class="dot"></span>' + (updating ? 'Updating…' : failed ? 'Connection problem, retrying…' : bad ? 'Data may be stale' : 'Live · refreshes every 5s');
 }
 
 function render() {
@@ -208,6 +210,7 @@ function tick() {
 }
 
 async function poll() {
+  clearTimeout(timer);   // never run two polling loops at once
   try {
     const r = await fetch('/api/status', { signal: AbortSignal.timeout(TIMEOUT) });
     if (!r.ok) throw new Error();
@@ -216,10 +219,16 @@ async function poll() {
       if (!known.has(n + '@' + b.since)) alertStart(n, b.lost);
     known = new Set(Object.entries(state.bleeding).map(([n, b]) => n + '@' + b.since));
   } catch { failed++; }
+  refreshing = false;
   render();
   if (!document.hidden) timer = setTimeout(poll, Math.min(POLL * 2 ** failed, 60000));   // back off after failures, pause when hidden
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(timer); poll(); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  refreshing = !!state.checked_at && Date.now() - state.checked_at > 60000;
+  setStatus(Date.now());
+  poll();
+});
 
 async function history() {
   try {
