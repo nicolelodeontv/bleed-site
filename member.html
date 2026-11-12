@@ -79,6 +79,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .muted{color:var(--mute)}
 @media(max-width:850px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.season-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){main{padding:18px 12px 48px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.season-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.stat b,.season-stat b{font-size:20px}.panel{padding:12px}h1{font-size:20px}th,td{padding:9px 10px}}
+.hr-tools{display:flex;gap:8px;flex-wrap:wrap}.hr-tools .watch.active{border-color:var(--gold);color:var(--gold)}
+.hr-chart{display:flex;align-items:stretch;gap:3px;height:130px;margin-top:12px}
+.hr-col{flex:1;min-width:0;display:grid;grid-template-rows:1fr 16px}.hr-col .bw{display:flex;align-items:flex-end}
+.hr-col i{display:block;width:100%;min-height:2px;border-radius:4px 4px 0 0;background:var(--accent)}
+.hr-col.zero i{background:var(--line)}.hr-col.now i{box-shadow:0 0 0 1px var(--text)}
+.hr-col span{font-size:10px;color:var(--mute);text-align:center;white-space:nowrap}
+.hr-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
 </style>
 </head>
 <body>
@@ -105,6 +112,18 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <div class="stat"><span>7-day gain</span><b id="gain-7d">—</b><small>Recorded reputation increases</small></div>
   <div class="stat"><span>30-day gain</span><b id="gain-30d">—</b><small>Available history window</small></div>
   <div class="stat"><span>Current clan rank</span><b id="member-rank">—</b><small id="rank-note">Live roster position</small></div>
+</section>
+
+<h2>Hourly gains · Asia/Manila</h2>
+<section class="panel" id="hourly-panel">
+  <div class="panel-head"><div><strong>Reputation gained per hour</strong><div class="sub" id="hr-sub">Loading hourly gains…</div></div>
+    <div class="hr-tools" id="hr-range" role="group" aria-label="Time range">
+      <button type="button" class="watch" data-h="12">12h</button>
+      <button type="button" class="watch active" data-h="24">24h</button>
+      <button type="button" class="watch" data-h="48">48h</button>
+    </div></div>
+  <div class="hr-chart" id="hr-chart" role="img" aria-label="Reputation gained per hour"></div>
+  <div class="hr-stats" id="hr-stats"></div>
 </section>
 
 <h2>Reputation gained · 30 days</h2>
@@ -744,6 +763,59 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
       $('status-message').classList.add('error');
     }
   });
+  // Hourly gains: the shared Chaos hourly feed, filtered to this member.
+  const hourFmt = new Intl.DateTimeFormat('en-US', {timeZone:TZ, hour:'numeric', hour12:true});
+  const hourShort = ms => hourFmt.format(new Date(ms)).replace(' ', '').replace('AM', 'a').replace('PM', 'p');
+  const hrEsc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let hrHours = 24, hrData = null, hrFailed = false, hrSeq = 0;
+
+  async function loadHourly() {
+    if (document.hidden || !member) return;
+    const mine = ++hrSeq;
+    try {
+      const r = await fetch('/api/history?view=chaos-hourly&hours=' + hrHours, {cache:'no-store'});
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (!Array.isArray(d.starts) || !Array.isArray(d.members)) throw new Error('bad payload');
+      if (mine === hrSeq) { hrData = d; hrFailed = false; }
+    } catch { if (mine === hrSeq) hrFailed = true; }
+    renderHourly();
+  }
+
+  function renderHourly() {
+    const sub = $('hr-sub');
+    if (!hrData) { sub.textContent = hrFailed ? 'Hourly gains are unavailable right now. Retrying…' : 'Loading hourly gains…'; return; }
+    const key = member.toLowerCase();
+    const row = hrData.members.find(m => String(m.name).toLowerCase() === key);
+    const hours = row ? row.hours : new Array(hrData.starts.length).fill(0);
+    const len = hours.length, total = hours.reduce((a, b) => a + b, 0), max = Math.max(1, ...hours);
+    const step = len <= 12 ? 1 : len <= 24 ? 3 : 6;
+    const best = hours.reduce((bi, v, i) => v > hours[bi] ? i : bi, 0), active = hours.filter(v => v > 0).length;
+    sub.textContent = total
+      ? 'Last ' + len + ' hours · ' + fmt(total) + ' rep gained' + (hrFailed ? ' · showing last saved data' : '')
+      : 'No gains recorded for this member in the last ' + len + ' hours' + (hrFailed ? ' · showing last saved data' : '');
+    $('hr-chart').innerHTML = hours.map((g, i) => {
+      const show = (len - 1 - i) % step === 0;
+      return '<div class="hr-col' + (g ? '' : ' zero') + (i === len - 1 ? ' now' : '') + '" title="' + hrEsc(hourFmt.format(new Date(hrData.starts[i])) + ': +' + fmt(g)) + '">' +
+        '<div class="bw"><i style="height:' + (g ? Math.max(3, Math.round(g / max * 100)) : 0) + '%"></i></div><span>' + (show ? hrEsc(hourShort(hrData.starts[i])) : '') + '</span></div>';
+    }).join('');
+    $('hr-chart').setAttribute('aria-label', 'Reputation gained per hour. ' + fmt(total) + ' in the last ' + len + ' hours.');
+    $('hr-stats').innerHTML =
+      '<div class="season-stat"><span>This hour</span><b>+' + fmt(hours[len - 1]) + '</b><small>' + hrEsc(hourFmt.format(new Date(hrData.starts[len - 1]))) + '</small></div>' +
+      '<div class="season-stat"><span>Last hour</span><b>+' + fmt(hours[len - 2] || 0) + '</b><small>' + (len > 1 ? hrEsc(hourFmt.format(new Date(hrData.starts[len - 2]))) : '—') + '</small></div>' +
+      '<div class="season-stat"><span>Best hour</span><b>' + (total ? '+' + fmt(hours[best]) : '—') + '</b><small>' + (total ? hrEsc(hourFmt.format(new Date(hrData.starts[best]))) : 'No gains yet') + '</small></div>' +
+      '<div class="season-stat"><span>Active hours</span><b>' + active + ' / ' + len + '</b><small>Hours with a recorded gain</small></div>';
+  }
+
+  $('hr-range').addEventListener('click', e => {
+    const b = e.target.closest('button[data-h]'); if (!b) return;
+    hrHours = Number(b.dataset.h); hrData = null; hrFailed = false;
+    $('hr-range').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    renderHourly(); loadHourly();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadHourly(); });
+  setInterval(loadHourly, 60000);
+  loadHourly();
   load();
 })();
 </script>
