@@ -143,6 +143,8 @@ select{min-width:145px}
     return new Intl.DateTimeFormat('en-PH', {timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'}).format(new Date(Number(value)));
   }
   function renderSelects() {
+    // After a failed first load there is no data yet; keep the error message instead of throwing.
+    if (!data || !Array.isArray(data.seasons)) return;
     const options = data.seasons.map(season =>
       '<option value="' + season.season_number + '">Season ' + season.season_number +
       (season.status === 'active' ? ' · Active' : '') + '</option>'
