@@ -5,8 +5,8 @@ const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROL
 const CLAN = process.env.CHAOS_CLAN || 'Chaos';
 
 // Chaos rep gained per hour (overall and per member) for the last N hours, N = ?hours= (1-72, default 24).
-export default async function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
+// Served by /api/history?view=chaos-hourly (a helper file, not its own route: the Vercel Hobby plan allows 12 functions).
+export async function handleChaosHourly(req, res) {
   try {
     const hours = clampHours(req.query && req.query.hours);
     const now = Date.now();
