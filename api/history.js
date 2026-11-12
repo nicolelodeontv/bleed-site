@@ -1,8 +1,11 @@
+import { handleChaosHourly } from './_chaos-hourly.js';
+
 const { SUPABASE_URL } = process.env;
 const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Finished bleeds from the last 24h, newest first.
 export default async function handler(req, res) {
+  if (req.query && req.query.view === 'chaos-hourly') return handleChaosHourly(req, res);
   try {
     const since = Date.now() - 24 * 3600e3;
     const r = await fetch(

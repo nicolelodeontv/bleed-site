@@ -55,3 +55,9 @@ for (const page of pages) {
     assert.equal(leftover, '', `${page} <head> contains stray text: ${leftover.slice(0, 40)}`);
   });
 }
+
+test('API route count stays within the Vercel Hobby limit of 12 functions', () => {
+  // Files starting with "_" are helpers, not routes. Add new endpoints as a ?view= on an existing route.
+  const routes = fs.readdirSync(path.join(root, 'api')).filter((f) => f.endsWith('.js') && !f.startsWith('_'));
+  assert.ok(routes.length <= 12, `${routes.length} routes: ${routes.join(', ')}`);
+});
